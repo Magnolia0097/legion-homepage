@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../types'
+import { requireAdmin } from '../middleware/admin'
 
 const gallery = new Hono<{ Bindings: Env }>()
 
@@ -21,7 +22,7 @@ gallery.get('/:date', async (c) => {
 })
 
 // 사진 업로드 (관리자 전용)
-gallery.post('/upload', async (c) => {
+gallery.post('/upload', requireAdmin, async (c) => {
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   const description = (formData.get('description') as string) ?? ''
@@ -47,8 +48,8 @@ gallery.post('/upload', async (c) => {
   return c.json({ success: true, fileKey }, 201)
 })
 
-// 사진 삭제 (관리자 전용) - R2 파일 + D1 메타데이터 동시 삭제
-gallery.delete('/:id', async (c) => {
+// 사진 삭제 (관리자 전용)
+gallery.delete('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
   const photo = await c.env.DB.prepare(
     'SELECT file_key FROM gallery WHERE id = ?'

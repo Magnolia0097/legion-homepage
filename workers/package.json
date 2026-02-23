@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --remote",
     "deploy": "wrangler deploy",
     "type-check": "tsc --noEmit"
   },

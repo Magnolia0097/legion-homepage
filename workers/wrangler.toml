@@ -7,7 +7,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "legion-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "0606355d-ef53-41d4-8d92-456f3ee75ef9"
 
 # R2 스토리지 바인딩
 [[r2_buckets]]
@@ -16,5 +16,5 @@ bucket_name = "legion-bucket"
 
 # 환경변수
 [vars]
-FIREBASE_PROJECT_ID = "REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID"
-ADMIN_EMAILS = "REPLACE_WITH_ADMIN_EMAIL@gmail.com"
+FIREBASE_PROJECT_ID = "legion-homepage"
+ADMIN_EMAILS = "magnolia0097@gmail.com"

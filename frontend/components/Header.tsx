@@ -11,6 +11,11 @@ const navLinks = [
   { href: '/gallery', label: '사진첩' },
 ]
 
+function isActive(pathname: string, href: string) {
+  if (href === '/') return pathname === '/'
+  return pathname === href || pathname.startsWith(href + '/')
+}
+
 export default function Header() {
   const pathname = usePathname()
 
@@ -33,9 +38,9 @@ export default function Header() {
               href={link.href}
               className="px-3 py-1.5 rounded transition-all duration-200"
               style={{
-                color: pathname === link.href ? 'var(--gold-light)' : 'var(--text-sub)',
-                border: pathname === link.href ? '1px solid var(--border-gold)' : '1px solid transparent',
-                background: pathname === link.href ? 'rgba(212,160,23,0.1)' : 'transparent',
+                color: isActive(pathname, link.href) ? 'var(--gold-light)' : 'var(--text-sub)',
+                border: isActive(pathname, link.href) ? '1px solid var(--border-gold)' : '1px solid transparent',
+                background: isActive(pathname, link.href) ? 'rgba(212,160,23,0.1)' : 'transparent',
                 textDecoration: 'none',
               }}
             >

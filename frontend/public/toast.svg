@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Primitives -->
+    <g id="crust-shape">
+      <circle cx="160" cy="155" r="115" />
+      <circle cx="340" cy="155" r="115" />
+      <rect x="85" y="155" width="330" height="235" rx="45" />
+    </g>
+    
+    <g id="inner-shape">
+      <circle cx="170" cy="170" r="95" />
+      <circle cx="330" cy="170" r="95" />
+      <rect x="110" y="170" width="280" height="205" rx="35" />
+    </g>
+
+    <!-- Masks for shadows -->
+    <mask id="crust-mask">
+      <use href="#crust-shape" fill="white" />
+    </mask>
+
+    <mask id="inner-mask">
+      <use href="#inner-shape" fill="white" />
+    </mask>
+
+    <mask id="tray-mask">
+      <rect x="70" y="375" width="360" height="50" rx="25" fill="white" />
+    </mask>
+  </defs>
+
+  <!-- Crust -->
+  <use href="#crust-shape" fill="#DF8537" />
+  <g mask="url(#crust-mask)">
+    <polygon points="210,500 500,210 500,500" fill="#000000" opacity="0.08" />
+  </g>
+
+  <!-- Inner Bread -->
+  <use href="#inner-shape" fill="#FBEED5" />
+  <g mask="url(#inner-mask)">
+    <!-- Inner shadow shifted slightly for depth -->
+    <polygon points="260,500 500,260 500,500" fill="#000000" opacity="0.05" />
+  </g>
+
+  <!-- Face details -->
+  <g id="face">
+    <!-- Cheeks (behind eyes) -->
+    <circle cx="178" cy="240" r="24" fill="#F5929B" />
+    <circle cx="322" cy="240" r="24" fill="#F5929B" />
+    
+    <!-- Left Eye -->
+    <rect x="185" y="200" width="24" height="34" rx="12" fill="#4E5359" />
+    <!-- Right Eye -->
+    <rect x="291" y="200" width="24" height="34" rx="12" fill="#4E5359" />
+    
+    <!-- Mouth -->
+    <path d="M 235 225 Q 250 245 265 225" stroke="#4E5359" stroke-width="10" stroke-linecap="round" fill="none" />
+  </g>
+
+  <!-- Tray -->
+  <rect x="70" y="375" width="360" height="50" rx="25" fill="#E4AC33" />
+  <rect x="70" y="375" width="360" height="40" rx="20" fill="#F6C54A" />
+  
+  <g mask="url(#tray-mask)">
+    <polygon points="280,500 500,280 500,500" fill="#000000" opacity="0.06" />
+  </g>
+
+</svg>

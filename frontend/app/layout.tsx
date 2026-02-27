@@ -19,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
+        <link rel="icon" href="/toast.svg" type="image/svg+xml" />
         {/* 라이트 모드 CSS 변수 — Tailwind v4 빌드 우회용 직접 주입 */}
         <style dangerouslySetInnerHTML={{ __html: `
           [data-theme="light"] {

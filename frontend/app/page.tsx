@@ -77,7 +77,7 @@ export default function HomePage() {
             backgroundClip: 'text',
           }}
         >
-          아이온 2 레기온 성심당
+          나니아 성심당
         </h1>
         <p className="text-base tracking-wide" style={{ color: 'var(--text-sub)' }}>
           친목, 라이트유저, 매너 플레이 ! 아이온2 레기온 성심당입니다

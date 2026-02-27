@@ -37,6 +37,7 @@ app.use('/api/*', cors({
   origin: (origin) => {
     const allowed = [
       'http://localhost:3000',
+      'http://127.0.0.1:3000',
       'https://legion-homepage.pages.dev',
       'https://legion-homepage-magnolia0097.pages.dev',
     ]

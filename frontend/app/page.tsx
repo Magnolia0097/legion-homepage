@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { memberApi } from '@/lib/api'
 import type { Member } from '@/types'
 import LegionIcon from '@/components/LegionIcon'
@@ -8,13 +8,15 @@ import LegionIcon from '@/components/LegionIcon'
 const ROLE_ORDER: Record<string, number> = {
   '군단장': 0,
   '엘리트장교': 1,
-  '장교': 2,
-  '단원': 3,
+  '명예장교': 2,
+  '장교': 3,
+  '단원': 4,
 }
 
 const ROLE_ICON: Record<string, string> = {
   '군단장': '👑',
   '엘리트장교': '🗡️',
+  '명예장교': '🎖️',
   '장교': '🛡️',
   '단원': '⚙️',
 }
@@ -22,8 +24,89 @@ const ROLE_ICON: Record<string, string> = {
 const ROLE_COLOR: Record<string, string> = {
   '군단장': 'var(--gold-light)',
   '엘리트장교': '#e0a0a0',
+  '명예장교': '#c8a8e8',
   '장교': '#a0c0e0',
   '단원': 'var(--text-sub)',
+}
+
+const ROLE_DESC: Record<string, string> = {
+  '군단장': '성심당의 군단장이다...!',
+  '엘리트장교': '성심당의 엘리트장교다 ....!',
+  '명예장교': '성심당의 엘리트장교였으나, 훌륭한 복무 이후 권력의 자리를 양도한 명예장교들이다...! 비공식적으로 엘리트장교와 동등한 힘을 가지고있다...!',
+}
+
+function RoleLabel({ role }: { role: string }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const desc = ROLE_DESC[role]
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const spanRef = useRef<HTMLSpanElement>(null)
+
+  const show = () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (spanRef.current) {
+      const r = spanRef.current.getBoundingClientRect()
+      setPos({ x: r.left + r.width / 2, y: r.top })
+    }
+  }
+  const hide = () => {
+    timerRef.current = setTimeout(() => setPos(null), 120)
+  }
+
+  return (
+    <span
+      ref={spanRef}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      style={{ display: 'inline-block', position: 'relative' }}
+    >
+      <span
+        className="text-xs font-bold w-20 whitespace-nowrap cursor-default"
+        style={{
+          color: ROLE_COLOR[role] ?? 'var(--text-sub)',
+          textShadow: role === '군단장' ? '0 0 8px rgba(245,200,66,0.4)' : 'none',
+          borderBottom: desc ? '1px dashed currentColor' : 'none',
+          opacity: desc ? 1 : 0.8,
+        }}
+      >
+        {role}
+      </span>
+      {desc && pos && (
+        <span
+          style={{
+            position: 'fixed',
+            left: `${pos.x}px`,
+            top: `${pos.y - 8}px`,
+            transform: 'translate(-50%, -100%)',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-gold)',
+            borderRadius: '6px',
+            padding: '7px 10px',
+            fontSize: '11px',
+            lineHeight: '1.5',
+            color: 'var(--text-sub)',
+            whiteSpace: 'normal',
+            width: '200px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          {desc}
+          <span style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 0,
+            height: 0,
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderTop: '6px solid var(--border-gold)',
+          }} />
+        </span>
+      )}
+    </span>
+  )
 }
 
 export default function HomePage() {
@@ -126,15 +209,7 @@ export default function HomePage() {
                 </span>
 
                 {/* 역할명 */}
-                <span
-                  className="text-xs font-bold w-20 whitespace-nowrap"
-                  style={{
-                    color: ROLE_COLOR[role] ?? 'var(--text-sub)',
-                    textShadow: role === '군단장' ? '0 0 8px rgba(245,200,66,0.4)' : 'none',
-                  }}
-                >
-                  {role}
-                </span>
+                <RoleLabel role={role} />
 
                 {/* 구분선 */}
                 <div className="w-px h-7" style={{ background: 'var(--border-gold)' }} />

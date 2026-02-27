@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 
-const BASE_URL = 'https://legion-homepage.pages.dev'
+const BASE_URL = 'https://nania-ssimdang.pages.dev'
 
 export default function robots(): MetadataRoute.Robots {
   return {

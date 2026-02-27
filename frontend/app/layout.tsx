@@ -6,7 +6,7 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
-const BASE_URL = 'https://legion-homepage.pages.dev'
+const BASE_URL = 'https://nania-ssimdang.pages.dev'
 
 export const metadata: Metadata = {
   title: {

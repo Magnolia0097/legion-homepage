@@ -6,9 +6,35 @@ import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
+const BASE_URL = 'https://legion-homepage.pages.dev'
+
 export const metadata: Metadata = {
-  title: '나니아 성심당',
-  description: '나니아 성심당 공식 홈페이지',
+  title: {
+    default: '나니아 성심당',
+    template: '%s | 나니아 성심당',
+  },
+  description: '아이온2 레기온 나니아 성심당 공식 홈페이지. 친목, 라이트유저, 매너 플레이 레기온입니다.',
+  keywords: ['나니아 성심당', '아이온2 성심당', '레기온 성심당', '아이온2 레기온', '나니아', '성심당', 'aion2', '아이온2'],
+  metadataBase: new URL(BASE_URL),
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'ko_KR',
+    url: BASE_URL,
+    siteName: '나니아 성심당',
+    title: '나니아 성심당 - 아이온2 레기온',
+    description: '아이온2 레기온 나니아 성심당 공식 홈페이지. 친목, 라이트유저, 매너 플레이 레기온입니다.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
 }
 
 export default function RootLayout({

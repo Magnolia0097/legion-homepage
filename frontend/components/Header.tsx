@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import LegionIcon from '@/components/LegionIcon'
+import ThemeToggle from '@/components/ThemeToggle'
 
 const navLinks = [
   { href: '/', label: '홈' },
@@ -13,29 +15,41 @@ export default function Header() {
   const pathname = usePathname()
 
   return (
-    <header className="bg-gray-900 text-white shadow-md">
+    <header style={{ background: 'var(--bg-header)', borderBottom: '2px solid var(--gold-dark)', position: 'sticky', top: 0, zIndex: 100 }}>
+      {/* 상단 골드 라인 */}
+      <div style={{ height: '3px', background: 'linear-gradient(90deg, transparent, var(--gold-mid), var(--gold-light), var(--gold-mid), transparent)' }} />
       <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold tracking-wide text-amber-400 hover:text-amber-300">
-          ⚔ 레기온
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-xl font-black tracking-widest"
+          style={{ color: 'var(--gold-light)', textShadow: '0 0 20px rgba(245,200,66,0.4)', textDecoration: 'none' }}
+        >
+          <LegionIcon size={52} style={{ filter: 'drop-shadow(0 0 6px rgba(245,200,66,0.5))' }} />
         </Link>
-        <nav className="flex gap-6 text-sm font-medium">
+        <nav className="flex gap-1 items-center text-sm font-semibold">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`hover:text-amber-300 transition-colors ${
-                pathname === link.href ? 'text-amber-400 border-b border-amber-400' : 'text-gray-300'
-              }`}
+              className="px-3 py-1.5 rounded transition-all duration-200"
+              style={{
+                color: pathname === link.href ? 'var(--gold-light)' : 'var(--text-sub)',
+                border: pathname === link.href ? '1px solid var(--border-gold)' : '1px solid transparent',
+                background: pathname === link.href ? 'rgba(212,160,23,0.1)' : 'transparent',
+                textDecoration: 'none',
+              }}
             >
               {link.label}
             </Link>
           ))}
           <Link
-            href="/admin/login"
-            className="text-gray-500 hover:text-gray-300 transition-colors text-xs"
+            href="/admin/members"
+            className="px-3 py-1.5 rounded transition-all duration-200 text-xs"
+            style={{ color: 'var(--text-muted)', border: '1px solid transparent', textDecoration: 'none' }}
           >
             관리자
           </Link>
+          <ThemeToggle />
         </nav>
       </div>
     </header>

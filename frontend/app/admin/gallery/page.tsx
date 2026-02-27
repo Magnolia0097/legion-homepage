@@ -7,6 +7,29 @@ import { getStoredToken } from '@/lib/firebase'
 import PhotoCard from '@/components/PhotoCard'
 import type { Photo } from '@/types'
 
+const inputStyle: React.CSSProperties = {
+  background: 'var(--bg-base)',
+  color: 'var(--text-main)',
+  border: '1px solid var(--border-gold)',
+  borderRadius: '6px',
+  padding: '8px 14px',
+  fontSize: '14px',
+  width: '100%',
+  fontFamily: 'inherit',
+}
+
+const primaryBtnStyle: React.CSSProperties = {
+  background: 'var(--gold-mid)',
+  color: 'var(--bg-base)',
+  fontWeight: '700',
+  padding: '8px 24px',
+  borderRadius: '6px',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: '14px',
+  fontFamily: 'inherit',
+}
+
 export default function AdminGalleryPage() {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -44,19 +67,15 @@ export default function AdminGalleryPage() {
       setMessage('파일과 날짜를 입력해주세요.')
       return
     }
-
     setUploading(true)
     setMessage(null)
-
     try {
-      // 브라우저에서 WebP 변환
       const webpBlob = await convertToWebP(file)
       const formData = new FormData()
       formData.append('file', webpBlob, 'photo.webp')
       formData.append('taken_date', takenDate)
       formData.append('description', description)
       formData.append('uploader', '관리자')
-
       const res = await galleryApi.upload(formData)
       if (res.ok) {
         setMessage('업로드 완료!')
@@ -83,62 +102,66 @@ export default function AdminGalleryPage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <div className="flex items-center justify-between border-b border-gray-800 pb-4">
-        <h1 className="text-2xl font-bold text-white">사진 관리</h1>
-        <a href="/admin/notice" className="text-sm text-gray-400 hover:text-white">공지 관리 →</a>
+      {/* 헤더 */}
+      <div className="flex items-center justify-between pb-4" style={{ borderBottom: '1px solid var(--border-dark)' }}>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-main)' }}>사진 관리</h1>
+        <a href="/admin/notice" style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '14px' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold-mid)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>
+          공지 관리 →
+        </a>
       </div>
 
       {/* 업로드 폼 */}
-      <form onSubmit={handleUpload} className="space-y-4 bg-gray-800 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-white">사진 업로드</h2>
-        <input
-          type="date"
-          value={takenDate}
-          onChange={(e) => setTakenDate(e.target.value)}
-          required
-          className="w-full bg-gray-900 text-white px-4 py-2 rounded border border-gray-700 focus:border-amber-500 outline-none"
-        />
+      <form onSubmit={handleUpload} className="space-y-4 rounded-lg p-6"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-gold)' }}>
+        <h2 className="text-base font-semibold" style={{ color: 'var(--text-main)' }}>사진 업로드</h2>
+        <input type="date" value={takenDate} onChange={(e) => setTakenDate(e.target.value)} required style={inputStyle} />
         <input
           type="text"
           placeholder="사진 설명 (선택)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full bg-gray-900 text-white px-4 py-2 rounded border border-gray-700 focus:border-amber-500 outline-none"
+          style={inputStyle}
         />
         <input
           ref={fileRef}
           type="file"
           accept="image/*"
           required
-          className="w-full text-gray-400 text-sm"
+          className="w-full text-sm"
+          style={{ color: 'var(--text-sub)' }}
         />
-        <p className="text-xs text-gray-500">* 이미지는 자동으로 WebP 형식으로 변환됩니다.</p>
-        <button
-          type="submit"
-          disabled={uploading}
-          className="bg-amber-500 text-black font-bold px-6 py-2 rounded hover:bg-amber-400 disabled:opacity-50"
-        >
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>* 이미지는 자동으로 WebP 형식으로 변환됩니다.</p>
+        <button type="submit" disabled={uploading} style={{ ...primaryBtnStyle, opacity: uploading ? 0.5 : 1 }}>
           {uploading ? '업로드 중...' : '업로드'}
         </button>
-        {message && <p className="text-sm text-green-400">{message}</p>}
+        {message && <p className="text-sm" style={{ color: 'var(--gold-mid)' }}>{message}</p>}
       </form>
 
       {/* 날짜 목록 */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-white">날짜별 사진 보기</h2>
+        <h2 className="text-base font-semibold" style={{ color: 'var(--text-main)' }}>날짜별 사진 보기</h2>
         {dates.length === 0 ? (
-          <p className="text-gray-500">등록된 사진이 없습니다.</p>
+          <p style={{ color: 'var(--text-muted)' }}>등록된 사진이 없습니다.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {dates.map((date) => (
               <button
                 key={date}
                 onClick={() => loadPhotos(date)}
-                className={`px-4 py-2 rounded text-sm font-medium border transition-colors ${
+                className="px-4 py-2 rounded text-sm font-medium transition-colors"
+                style={
                   selectedDate === date
-                    ? 'bg-amber-500 text-black border-amber-500'
-                    : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-amber-500'
-                }`}
+                    ? { background: 'var(--gold-mid)', color: 'var(--bg-base)', border: '1px solid var(--gold-mid)', cursor: 'pointer', fontFamily: 'inherit' }
+                    : { background: 'var(--bg-card)', color: 'var(--text-sub)', border: '1px solid var(--border-gold)', cursor: 'pointer', fontFamily: 'inherit' }
+                }
+                onMouseEnter={e => {
+                  if (selectedDate !== date) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--gold-mid)'
+                }}
+                onMouseLeave={e => {
+                  if (selectedDate !== date) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-gold)'
+                }}
               >
                 {date}
               </button>
@@ -150,9 +173,11 @@ export default function AdminGalleryPage() {
       {/* 선택된 날짜 사진 */}
       {selectedDate && (
         <div className="space-y-4">
-          <h3 className="text-white font-semibold">{selectedDate} 사진 ({photos.length}장)</h3>
+          <h3 className="font-semibold" style={{ color: 'var(--text-main)' }}>
+            {selectedDate} 사진 ({photos.length}장)
+          </h3>
           {photos.length === 0 ? (
-            <p className="text-gray-500">사진이 없습니다.</p>
+            <p style={{ color: 'var(--text-muted)' }}>사진이 없습니다.</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {photos.map((photo) => (
@@ -166,7 +191,6 @@ export default function AdminGalleryPage() {
   )
 }
 
-// 브라우저 Canvas API를 이용한 WebP 변환
 function convertToWebP(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image()

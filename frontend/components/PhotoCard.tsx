@@ -9,7 +9,10 @@ interface Props {
 
 export default function PhotoCard({ photo, onDelete }: Props) {
   return (
-    <div className="relative group rounded-lg overflow-hidden bg-gray-800">
+    <div
+      className="relative group rounded-lg overflow-hidden"
+      style={{ background: 'var(--bg-card)', border: '1px solid var(--border-dark)' }}
+    >
       <Image
         src={getImageUrl(photo.file_key)}
         alt={photo.description ?? ''}
@@ -19,12 +22,15 @@ export default function PhotoCard({ photo, onDelete }: Props) {
         unoptimized
       />
       {photo.description && (
-        <p className="text-xs text-gray-400 p-2 truncate">{photo.description}</p>
+        <p className="text-xs p-2 truncate" style={{ color: 'var(--text-sub)' }}>
+          {photo.description}
+        </p>
       )}
       {onDelete && (
         <button
           onClick={() => onDelete(photo.id)}
-          className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: '#c0392b', color: '#fff' }}
         >
           삭제
         </button>

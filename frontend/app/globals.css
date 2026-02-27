@@ -1,25 +1,57 @@
 @import "tailwindcss";
 
+/* ── Dark Mode (기본) ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-base: #1a1208;
+  --bg-card: #231908;
+  --bg-header: #120e05;
+  --gold-light: #f5c842;
+  --gold-mid: #d4a017;
+  --gold-dark: #8b6914;
+  --text-main: #f2e8c9;
+  --text-sub: #b8a060;
+  --text-muted: #7a6030;
+  --border-gold: rgba(212, 160, 23, 0.3);
+  --border-dark: rgba(212, 160, 23, 0.12);
+}
+
+/* ── Light Mode ── */
+[data-theme="light"] {
+  --bg-base: #fdf8ef;
+  --bg-card: #fff8e8;
+  --bg-header: #fffdf5;
+  --gold-light: #b07800;
+  --gold-mid: #9a6f00;
+  --gold-dark: #c8a060;
+  --text-main: #2d1f00;
+  --text-sub: #7a5a20;
+  --text-muted: #b8956a;
+  --border-gold: rgba(180, 120, 0, 0.28);
+  --border-dark: rgba(180, 120, 0, 0.1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-main);
   --font-sans: 'Pretendard', sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--bg-base);
+  color: var(--text-main);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+@keyframes shimmer {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--gold-mid) !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(2) hue-rotate(5deg);
 }

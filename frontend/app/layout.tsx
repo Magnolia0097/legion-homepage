@@ -4,6 +4,7 @@ import '@fontsource/pretendard/700.css'
 import './globals.css'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
   title: '아이온2 레기온',
@@ -17,12 +18,38 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans">
-        <Header />
-        <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
-          {children}
-        </main>
-        <Footer />
+      <head>
+        {/* 라이트 모드 CSS 변수 — Tailwind v4 빌드 우회용 직접 주입 */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          [data-theme="light"] {
+            --bg-base: #fdf8ef;
+            --bg-card: #fff8e8;
+            --bg-header: #fffdf5;
+            --gold-light: #b07800;
+            --gold-mid: #9a6f00;
+            --gold-dark: #c8a060;
+            --text-main: #2d1f00;
+            --text-sub: #7a5a20;
+            --text-muted: #b8956a;
+            --border-gold: rgba(180,120,0,0.28);
+            --border-dark: rgba(180,120,0,0.1);
+          }
+        `}} />
+        {/* 페이지 로드 시 저장된 테마 즉시 적용 (깜빡임 방지) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-screen flex flex-col font-sans" style={{ background: 'var(--bg-base)', color: 'var(--text-main)' }}>
+        <ThemeProvider>
+          <Header />
+          <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
+            {children}
+          </main>
+          <Footer />
+        </ThemeProvider>
       </body>
     </html>
   )

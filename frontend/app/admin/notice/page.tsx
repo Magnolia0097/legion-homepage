@@ -14,6 +14,39 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { title: '', content: '', is_pinned: 0 }
 
+const inputStyle: React.CSSProperties = {
+  background: 'var(--bg-base)',
+  color: 'var(--text-main)',
+  border: '1px solid var(--border-gold)',
+  borderRadius: '6px',
+  padding: '8px 14px',
+  fontSize: '14px',
+  width: '100%',
+  fontFamily: 'inherit',
+}
+
+const primaryBtnStyle: React.CSSProperties = {
+  background: 'var(--gold-mid)',
+  color: 'var(--bg-base)',
+  fontWeight: '700',
+  padding: '8px 24px',
+  borderRadius: '6px',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: '14px',
+  fontFamily: 'inherit',
+}
+
+const ghostBtnStyle: React.CSSProperties = {
+  background: 'none',
+  color: 'var(--text-muted)',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '8px 16px',
+  fontSize: '14px',
+  fontFamily: 'inherit',
+}
+
 export default function AdminNoticePage() {
   const router = useRouter()
   const [notices, setNotices] = useState<Notice[]>([])
@@ -76,21 +109,29 @@ export default function AdminNoticePage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <div className="flex items-center justify-between border-b border-gray-800 pb-4">
-        <h1 className="text-2xl font-bold text-white">공지 관리</h1>
-        <a href="/admin/gallery" className="text-sm text-gray-400 hover:text-white">사진 관리 →</a>
+      {/* 헤더 */}
+      <div className="flex items-center justify-between pb-4" style={{ borderBottom: '1px solid var(--border-dark)' }}>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-main)' }}>공지 관리</h1>
+        <a href="/admin/gallery" style={{ color: 'var(--text-muted)', textDecoration: 'none', fontSize: '14px' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold-mid)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>
+          사진 관리 →
+        </a>
       </div>
 
       {/* 작성/수정 폼 */}
-      <form onSubmit={handleSubmit} className="space-y-4 bg-gray-800 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-white">{editId !== null ? '공지 수정' : '공지 작성'}</h2>
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg p-6"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-gold)' }}>
+        <h2 className="text-base font-semibold" style={{ color: 'var(--text-main)' }}>
+          {editId !== null ? '공지 수정' : '공지 작성'}
+        </h2>
         <input
           type="text"
           placeholder="제목"
           value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
           required
-          className="w-full bg-gray-900 text-white px-4 py-2 rounded border border-gray-700 focus:border-amber-500 outline-none"
+          style={inputStyle}
         />
         <textarea
           placeholder="내용"
@@ -98,55 +139,67 @@ export default function AdminNoticePage() {
           onChange={(e) => setForm({ ...form, content: e.target.value })}
           required
           rows={6}
-          className="w-full bg-gray-900 text-white px-4 py-2 rounded border border-gray-700 focus:border-amber-500 outline-none resize-none"
+          style={{ ...inputStyle, resize: 'none' }}
         />
-        <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text-sub)' }}>
           <input
             type="checkbox"
             checked={form.is_pinned === 1}
             onChange={(e) => setForm({ ...form, is_pinned: e.target.checked ? 1 : 0 })}
+            style={{ accentColor: 'var(--gold-mid)' }}
           />
           상단 고정
         </label>
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-amber-500 text-black font-bold px-6 py-2 rounded hover:bg-amber-400 disabled:opacity-50"
-          >
+        <div className="flex gap-3 items-center">
+          <button type="submit" disabled={saving} style={{ ...primaryBtnStyle, opacity: saving ? 0.5 : 1 }}>
             {saving ? '저장 중...' : editId !== null ? '수정 완료' : '작성'}
           </button>
           {editId !== null && (
-            <button
-              type="button"
-              onClick={() => { setEditId(null); setForm(EMPTY_FORM) }}
-              className="text-gray-400 hover:text-white px-4 py-2"
-            >
+            <button type="button" onClick={() => { setEditId(null); setForm(EMPTY_FORM) }} style={ghostBtnStyle}>
               취소
             </button>
           )}
         </div>
-        {message && <p className="text-sm text-green-400">{message}</p>}
+        {message && <p className="text-sm" style={{ color: 'var(--gold-mid)' }}>{message}</p>}
       </form>
 
       {/* 공지 목록 */}
       <div className="space-y-3">
         {loading ? (
-          <p className="text-gray-500">불러오는 중...</p>
+          <p className="text-center py-4" style={{ color: 'var(--text-muted)' }}>불러오는 중...</p>
         ) : notices.length === 0 ? (
-          <p className="text-gray-500">등록된 공지가 없습니다.</p>
+          <p className="text-center py-4" style={{ color: 'var(--text-muted)' }}>등록된 공지가 없습니다.</p>
         ) : (
           notices.map((notice) => (
-            <div key={notice.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3">
+            <div
+              key={notice.id}
+              className="flex items-center justify-between rounded-lg px-4 py-3"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-dark)' }}
+            >
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {notice.is_pinned === 1 && (
-                  <span className="text-xs bg-amber-500 text-black font-bold px-2 py-0.5 rounded shrink-0">고정</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded shrink-0"
+                    style={{ background: 'var(--gold-mid)', color: 'var(--bg-base)' }}>
+                    고정
+                  </span>
                 )}
-                <span className="text-white truncate">{notice.title}</span>
+                <span className="truncate" style={{ color: 'var(--text-main)' }}>{notice.title}</span>
               </div>
               <div className="flex gap-2 ml-4 shrink-0">
-                <button onClick={() => handleEdit(notice)} className="text-xs text-blue-400 hover:text-blue-300">수정</button>
-                <button onClick={() => handleDelete(notice.id)} className="text-xs text-red-400 hover:text-red-300">삭제</button>
+                <button onClick={() => handleEdit(notice)}
+                  className="text-xs"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-sub)', fontFamily: 'inherit' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold-mid)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-sub)')}>
+                  수정
+                </button>
+                <button onClick={() => handleDelete(notice.id)}
+                  className="text-xs"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'inherit' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#e05050')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>
+                  삭제
+                </button>
               </div>
             </div>
           ))

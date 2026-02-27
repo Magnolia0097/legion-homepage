@@ -77,6 +77,21 @@ export const galleryApi = {
 export const memberApi = {
   getAll: (): Promise<Member[]> =>
     fetch(`${API_BASE}/api/members`).then((r) => r.json()),
+
+  create: (data: Pick<Member, 'nickname' | 'role'>): Promise<Response> =>
+    fetchWithAuth(`${API_BASE}/api/members`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: Pick<Member, 'nickname' | 'role'>): Promise<Response> =>
+    fetchWithAuth(`${API_BASE}/api/members/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number): Promise<Response> =>
+    fetchWithAuth(`${API_BASE}/api/members/${id}`, { method: 'DELETE' }),
 }
 
 // ─── 인증 검증 ───

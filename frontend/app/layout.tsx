@@ -7,8 +7,8 @@ import Footer from '@/components/Footer'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
-  title: '아이온2 레기온',
-  description: '아이온2 레기온 공식 홈페이지',
+  title: '나니아 성심당',
+  description: '나니아 성심당 공식 홈페이지',
 }
 
 export default function RootLayout({

@@ -8,7 +8,7 @@ export default function Footer() {
         color: 'var(--text-muted)',
       }}
     >
-      <p>✦ &nbsp; © 2026 아이온2 레기온 · All rights reserved &nbsp; ✦</p>
+      <p>✦ &nbsp; © 2026 나니아 성심당 · All rights reserved &nbsp; ✦</p>
     </footer>
   )
 }

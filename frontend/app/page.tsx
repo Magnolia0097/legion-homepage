@@ -80,7 +80,7 @@ export default function HomePage() {
           나니아 성심당
         </h1>
         <p className="text-base tracking-wide" style={{ color: 'var(--text-sub)' }}>
-          친목, 라이트유저, 매너 플레이 ! 아이온2 레기온 성심당입니다
+          친목, 라이트유저, 매너 플레이 ! 나니아 성심당입니다
         </p>
 
         {/* 하단 장식선 */}

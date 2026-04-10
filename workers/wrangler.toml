@@ -17,4 +17,14 @@ bucket_name = "legion-bucket"
 # 환경변수
 [vars]
 FIREBASE_PROJECT_ID = "legion-homepage"
-ADMIN_EMAILS = "magnolia0097@gmail.com"
+SUPER_ADMIN_EMAILS = "magnolia0097@gmail.com"
+# 이메일 발신 주소 (Resend에서 인증된 도메인의 주소)
+RESEND_FROM_EMAIL = "onboarding@resend.dev"
+
+# Workers AI 바인딩
+[ai]
+binding = "AI"
+
+# ─── 이메일 전송 시크릿 (아래 명령으로 설정) ───
+# wrangler secret put RESEND_API_KEY
+# → Resend (resend.com) 가입 후 발급받은 API Key 입력

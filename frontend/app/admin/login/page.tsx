@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { loginWithGoogle } from '@/lib/firebase'
+import { loginWithGoogle, setAdminRole, setAdminPermissions, setAdminNickname } from '@/lib/firebase'
 import { authApi } from '@/lib/api'
 
 export default function AdminLoginPage() {
@@ -20,6 +20,9 @@ export default function AdminLoginPage() {
         setError('관리자 권한이 없는 계정입니다.')
         return
       }
+      setAdminRole(result.isSuperAdmin)
+      setAdminPermissions(result.permissions ?? [])
+      setAdminNickname(result.nickname ?? '')
       router.push('/admin/notice')
     } catch (e) {
       setError('로그인에 실패했습니다.')

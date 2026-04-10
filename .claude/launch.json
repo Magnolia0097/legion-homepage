@@ -5,13 +5,21 @@
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
+      "cwd": "frontend",
       "port": 3000
     },
     {
       "name": "workers",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
+      "cwd": "workers",
       "port": 8787
+    },
+    {
+      "name": "mockup",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "4000", "-s", "."],
+      "port": 4000
     }
   ]
 }

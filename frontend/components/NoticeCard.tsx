@@ -40,6 +40,9 @@ export default function NoticeCard({ notice }: Props) {
             고정
           </span>
         )}
+        {notice.music_key && (
+          <span className="text-xs shrink-0" style={{ color: 'var(--gold-mid)' }}>♪</span>
+        )}
         <h3 className="font-medium truncate" style={{ color: 'var(--text-main)' }}>
           {notice.title}
         </h3>

@@ -40,6 +40,7 @@ body {
   background: var(--bg-base);
   color: var(--text-main);
   font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
 }
 
 @keyframes shimmer {
@@ -54,4 +55,164 @@ input:focus, select:focus, textarea:focus {
 
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.6) sepia(1) saturate(2) hue-rotate(5deg);
+}
+
+/* ── Design Preview: A안 (Luxury Dark) ── */
+[data-preview-theme="a"] {
+  --bg-base: #0d0a06;
+  --bg-card: #141009;
+  --bg-header: #090705;
+  --gold-light: #f0d485;
+  --gold-mid: #e8c870;
+  --gold-dark: #a07830;
+  --text-main: #f8f0d8;
+  --text-sub: #c8aa70;
+  --text-muted: #907850;
+  --border-gold: rgba(232, 200, 112, 0.38);
+  --border-dark: rgba(232, 200, 112, 0.15);
+  /* Luxury 전용 */
+  --card-shadow: 0 4px 28px rgba(232, 200, 112, 0.1), 0 0 0 1px rgba(232, 200, 112, 0.18);
+  --card-radius: 14px;
+  --btn-bg: linear-gradient(135deg, rgba(240, 212, 133, 0.18) 0%, rgba(232, 200, 112, 0.08) 100%);
+  --section-bg: linear-gradient(180deg, transparent 0%, rgba(232, 200, 112, 0.025) 100%);
+}
+
+/* ── Design Preview: B안 (Refined Polish) ── */
+[data-preview-theme="b"] {
+  --bg-base: #1a1208;
+  --bg-card: #231908;
+  --bg-header: #120e05;
+  --gold-light: #f5c842;
+  --gold-mid: #d4a017;
+  --gold-dark: #8b6914;
+  --text-main: #f2e8c9;
+  --text-sub: #b8a060;
+  --text-muted: #7a6030;
+  --border-gold: rgba(212, 160, 23, 0.3);
+  --border-dark: rgba(212, 160, 23, 0.12);
+  /* Refined 전용 */
+  --card-shadow: 0 2px 16px rgba(212, 160, 23, 0.08), 0 1px 0 rgba(212, 160, 23, 0.1) inset;
+  --card-radius: 10px;
+  --btn-bg: linear-gradient(135deg, rgba(212, 160, 23, 0.14) 0%, transparent 100%);
+  --section-bg: linear-gradient(180deg, transparent 0%, rgba(212, 160, 23, 0.02) 100%);
+}
+
+/* 현재 테마 (비교용) */
+[data-preview-theme="current"] {
+  --card-shadow: none;
+  --card-radius: 8px;
+  --btn-bg: transparent;
+  --section-bg: transparent;
+}
+
+/* ── Light Mode Overrides for Preview ── */
+[data-preview-theme="current"][data-preview-mode="light"] {
+  --bg-base: #fdf8ef;
+  --bg-card: #fff8e8;
+  --bg-header: #fffdf5;
+  --gold-light: #b07800;
+  --gold-mid: #9a6f00;
+  --gold-dark: #c8a060;
+  --text-main: #2d1f00;
+  --text-sub: #7a5a20;
+  --text-muted: #b8956a;
+  --border-gold: rgba(180, 120, 0, 0.28);
+  --border-dark: rgba(180, 120, 0, 0.1);
+}
+
+[data-preview-theme="a"][data-preview-mode="light"] {
+  --bg-base: #faf5e8;
+  --bg-card: #fffbf0;
+  --bg-header: #fffef8;
+  --gold-light: #8a5c00;
+  --gold-mid: #7a5200;
+  --gold-dark: #c8a050;
+  --text-main: #1a1000;
+  --text-sub: #60461a;
+  --text-muted: #a88050;
+  --border-gold: rgba(138, 92, 0, 0.3);
+  --border-dark: rgba(138, 92, 0, 0.12);
+  --card-shadow: 0 4px 28px rgba(138, 92, 0, 0.14), 0 0 0 1px rgba(138, 92, 0, 0.16);
+  --card-radius: 14px;
+  --btn-bg: linear-gradient(135deg, rgba(138, 92, 0, 0.1) 0%, rgba(138, 92, 0, 0.04) 100%);
+  --section-bg: linear-gradient(180deg, transparent 0%, rgba(138, 92, 0, 0.02) 100%);
+}
+
+[data-preview-theme="b"][data-preview-mode="light"] {
+  --bg-base: #fdf8ef;
+  --bg-card: #fff8e8;
+  --bg-header: #fffdf5;
+  --gold-light: #b07800;
+  --gold-mid: #9a6f00;
+  --gold-dark: #c8a060;
+  --text-main: #2d1f00;
+  --text-sub: #7a5a20;
+  --text-muted: #b8956a;
+  --border-gold: rgba(180, 120, 0, 0.28);
+  --border-dark: rgba(180, 120, 0, 0.1);
+  --card-shadow: 0 2px 16px rgba(180, 120, 0, 0.1), 0 1px 0 rgba(180, 120, 0, 0.08) inset;
+  --card-radius: 10px;
+  --btn-bg: linear-gradient(135deg, rgba(180, 120, 0, 0.1) 0%, transparent 100%);
+  --section-bg: linear-gradient(180deg, transparent 0%, rgba(180, 120, 0, 0.015) 100%);
+}
+
+/* 최고관리자 히어로 모드: main 패딩·너비 제거 (layout Footer는 정상 표시 유지) */
+body[data-hero="1"] main {
+  padding: 0;
+  /* 모바일 BottomNav(60px) 가림 방지 — 하단 여백 복구 */
+  padding-bottom: 80px;
+  max-width: none !important;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  body[data-hero="1"] main {
+    padding-bottom: 0;
+  }
+}
+
+/* ── 멤버 페이지 그리드: 모바일 2칸, 데스크톱 4칸 ── */
+@media (min-width: 768px) {
+  .member-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+/* ── 멤버 소개 오버레이 스크롤바 ── */
+.member-bio-overlay::-webkit-scrollbar {
+  width: 4px;
+}
+.member-bio-overlay::-webkit-scrollbar-track {
+  background: transparent;
+}
+.member-bio-overlay::-webkit-scrollbar-thumb {
+  background: var(--border-gold);
+  border-radius: 2px;
+}
+.member-bio-overlay::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dark);
+}
+.member-bio-overlay {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-gold) transparent;
+}
+
+/* ── 멤버 플레이스홀더 shimmer (천천히 한 번, 이후 긴 휴식) ── */
+@keyframes shimmer-pulse {
+  0%   { background-position: 220% center; }
+  30%  { background-position: -20% center; }
+  100% { background-position: -20% center; }
+}
+
+.placeholder-shimmer {
+  background: linear-gradient(
+    105deg,
+    var(--text-muted) 35%,
+    var(--gold-light) 50%,
+    var(--text-muted) 65%
+  );
+  background-size: 280% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-pulse 5s ease-in-out infinite;
 }

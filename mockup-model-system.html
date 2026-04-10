@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>이달의 모델 시스템 시안</title>
+<style>
+  :root {
+    --bg: #0a090d;
+    --bg-card: #121018;
+    --bg-card2: #16131e;
+    --gold-bright: #f0c040;
+    --gold-mid: #d4a017;
+    --gold-dark: #8a6510;
+    --border-gold: rgba(212,160,23,0.28);
+    --text-main: #f0ece0;
+    --text-sub: #b8b0a0;
+    --text-muted: #6a6058;
+    --pink: #ffb3cc;
+    --pink-dim: rgba(255,150,180,0.35);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background: var(--bg); color: var(--text-main); font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; }
+
+  /* ── 탭 네비 ── */
+  .tab-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(10,9,13,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-gold);
+    display: flex; align-items: center; gap: 0; padding: 0 24px;
+    height: 52px;
+  }
+  .tab-nav .logo { font-size: 0.75rem; letter-spacing: 0.3em; color: var(--gold-mid); margin-right: 32px; font-weight: 700; }
+  .tab-btn {
+    padding: 0 18px; height: 52px; border: none; background: none;
+    color: var(--text-muted); cursor: pointer; font-size: 0.8rem;
+    letter-spacing: 0.08em; font-family: inherit; border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab-btn.active { color: var(--gold-mid); border-bottom-color: var(--gold-mid); }
+  .tab-btn:hover:not(.active) { color: var(--text-sub); }
+
+  /* ── 뷰 ── */
+  .view { display: none; padding-top: 52px; min-height: 100vh; }
+  .view.active { display: block; }
+
+  /* ══════════════ VIEW 1: 홈 ══════════════ */
+  .hero {
+    position: relative; width: 100%; height: 100vh;
+    overflow: hidden; display: flex; align-items: flex-end;
+  }
+  .hero-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, #1a0a2e 0%, #0d1a2e 40%, #0a0d1a 100%);
+  }
+  /* 벚꽃 파티클 */
+  .petal {
+    position: absolute; width: 8px; height: 8px;
+    background: radial-gradient(circle, rgba(255,192,203,0.9) 0%, rgba(255,150,180,0.4) 100%);
+    border-radius: 50% 0 50% 0; pointer-events: none;
+    animation: fall linear infinite;
+  }
+  @keyframes fall {
+    0% { transform: translateY(-20px) rotate(0deg) translateX(0); opacity: 0.9; }
+    100% { transform: translateY(110vh) rotate(720deg) translateX(40px); opacity: 0; }
+  }
+  .hero-model-img {
+    position: absolute; right: 8%; bottom: 0; height: 88%;
+    object-fit: contain; filter: drop-shadow(0 0 60px rgba(212,160,23,0.15));
+  }
+  .hero-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to right, rgba(10,9,13,0.75) 0%, rgba(10,9,13,0.3) 50%, transparent 80%);
+  }
+  .hero-content {
+    position: relative; z-index: 2; padding: 0 7vw 9vh; max-width: 580px;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,192,203,0.14); border: 1px solid rgba(255,192,203,0.55);
+    color: #ffcce0; font-size: 0.6rem; letter-spacing: 0.28em; font-weight: 700;
+    padding: 5px 14px; border-radius: 100px; margin-bottom: 18px;
+    backdrop-filter: blur(8px);
+  }
+  .hero-month { font-size: 0.72rem; letter-spacing: 0.22em; color: var(--gold-mid); margin-bottom: 8px; }
+  .hero-title { font-size: clamp(2rem, 4.5vw, 3.2rem); font-weight: 800; line-height: 1.2; margin-bottom: 14px; }
+  .hero-title span { color: var(--pink); }
+  .hero-desc { font-size: 0.85rem; color: var(--text-sub); line-height: 1.7; margin-bottom: 28px; }
+  .hero-music-bar {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 100px; padding: 8px 18px 8px 10px;
+    backdrop-filter: blur(8px); width: fit-content; margin-bottom: 28px;
+  }
+  .music-play-btn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--gold-mid); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .music-play-btn:hover { transform: scale(1.08); }
+  .music-info { display: flex; flex-direction: column; gap: 2px; }
+  .music-title { font-size: 0.72rem; font-weight: 700; color: var(--text-main); }
+  .music-sub { font-size: 0.58rem; letter-spacing: 0.1em; color: var(--text-muted); }
+  .music-wave {
+    display: flex; align-items: center; gap: 2px; margin-left: 4px;
+  }
+  .music-wave span {
+    display: block; width: 3px; background: var(--gold-mid); border-radius: 2px;
+    animation: wave 0.8s ease-in-out infinite alternate;
+  }
+  .music-wave span:nth-child(2) { animation-delay: 0.15s; }
+  .music-wave span:nth-child(3) { animation-delay: 0.3s; }
+  .music-wave span:nth-child(4) { animation-delay: 0.1s; }
+  @keyframes wave { 0% { height: 4px; } 100% { height: 14px; } }
+  .hero-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(212,160,23,0.12); border: 1px solid var(--gold-mid);
+    color: var(--gold-mid); padding: 10px 22px; border-radius: 100px;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer; text-decoration: none;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .hero-cta:hover { background: rgba(212,160,23,0.22); }
+
+  /* 좌측 모델 인디케이터 */
+  .model-sidebar {
+    position: absolute; right: 3%; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 16px; z-index: 3;
+  }
+  .model-dot {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; opacity: 0.45; transition: opacity 0.2s;
+  }
+  .model-dot.active { opacity: 1; }
+  .model-dot-circle { width: 8px; height: 8px; border-radius: 50%; background: var(--gold-mid); }
+  .model-dot-circle.empty { background: rgba(255,255,255,0.3); }
+  .model-dot-label { font-size: 0.5rem; letter-spacing: 0.12em; color: var(--text-muted); writing-mode: vertical-rl; }
+
+  /* 자동 업데이트 배지 */
+  .auto-badge {
+    position: absolute; top: 72px; right: 24px; z-index: 10;
+    background: rgba(20,200,100,0.15); border: 1px solid rgba(20,200,100,0.4);
+    color: #50e090; font-size: 0.58rem; letter-spacing: 0.15em; font-weight: 700;
+    padding: 5px 12px; border-radius: 100px; display: flex; align-items: center; gap: 6px;
+  }
+  .auto-dot { width: 6px; height: 6px; border-radius: 50%; background: #50e090; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ══════════════ VIEW 2: 아카이브 ══════════════ */
+  .archive-wrap { max-width: 1100px; margin: 0 auto; padding: 48px 24px 80px; }
+  .section-header { text-align: center; padding: 32px 0 40px; }
+  .section-header .eyebrow { font-size: 0.62rem; letter-spacing: 0.36em; color: var(--gold-dark); margin-bottom: 8px; }
+  .section-header h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: 0.06em; }
+  .section-header .sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; }
+
+  .timeline { position: relative; }
+  .timeline::before {
+    content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+    width: 1px; background: linear-gradient(to bottom, transparent, var(--border-gold) 10%, var(--border-gold) 90%, transparent);
+    transform: translateX(-50%);
+  }
+  .timeline-item {
+    display: grid; grid-template-columns: 1fr 48px 1fr; gap: 0; margin-bottom: 64px;
+    align-items: center;
+  }
+  .timeline-item:nth-child(odd) .tl-card { grid-column: 1; }
+  .timeline-item:nth-child(odd) .tl-empty { grid-column: 3; }
+  .timeline-item:nth-child(even) .tl-card { grid-column: 3; order: 3; }
+  .timeline-item:nth-child(even) .tl-empty { grid-column: 1; order: 1; }
+  .timeline-item:nth-child(even) .tl-dot { order: 2; }
+  .tl-dot {
+    grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    z-index: 2;
+  }
+  .tl-dot-circle {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--gold-mid); background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.62rem; font-weight: 700; color: var(--gold-mid); letter-spacing: 0.06em;
+  }
+  .tl-dot-circle.current {
+    background: var(--gold-mid); color: #111;
+    box-shadow: 0 0 20px rgba(212,160,23,0.5);
+  }
+  .tl-card {
+    background: var(--bg-card); border: 1px solid var(--border-gold);
+    border-radius: 14px; overflow: hidden; cursor: pointer;
+    transition: all 0.2s; position: relative;
+  }
+  .tl-card:hover { border-color: var(--gold-mid); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .tl-card.current-card { border-color: var(--gold-mid); box-shadow: 0 0 30px rgba(212,160,23,0.18); }
+  .tl-card-img { width: 100%; height: 240px; object-fit: cover; display: block; background: #1a1520; }
+  .tl-card-img-placeholder {
+    width: 100%; height: 240px; background: linear-gradient(135deg, #1a1020, #0d1530);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  }
+  .tl-card-body { padding: 18px 20px 20px; }
+  .tl-month { font-size: 0.62rem; letter-spacing: 0.25em; color: var(--gold-dark); margin-bottom: 4px; }
+  .tl-name { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; }
+  .tl-desc { font-size: 0.78rem; color: var(--text-sub); line-height: 1.6; margin-bottom: 12px; }
+  .tl-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tl-tag {
+    font-size: 0.6rem; letter-spacing: 0.12em; padding: 3px 10px; border-radius: 100px;
+    border: 1px solid; font-weight: 600;
+  }
+  .tl-tag.pink { color: #ffb3cc; border-color: rgba(255,150,180,0.4); background: rgba(255,150,180,0.08); }
+  .tl-tag.gold { color: var(--gold-mid); border-color: var(--border-gold); background: rgba(212,160,23,0.06); }
+  .tl-music-chip {
+    display: flex; align-items: center; gap: 6px; margin-top: 10px;
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 100px; padding: 5px 12px; width: fit-content;
+  }
+  .tl-music-chip span { font-size: 0.68rem; color: var(--text-sub); }
+  .current-label {
+    position: absolute; top: 12px; right: 12px;
+    background: rgba(255,192,203,0.2); border: 1px solid rgba(255,192,203,0.6);
+    color: #ffcce0; font-size: 0.58rem; letter-spacing: 0.2em; font-weight: 700;
+    padding: 4px 10px; border-radius: 100px;
+  }
+  .upcoming-card {
+    background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 14px; height: 240px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  }
+  .upcoming-card span { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.12em; }
+  .upcoming-card .plus { font-size: 2rem; color: rgba(255,255,255,0.1); }
+
+  /* ══════════════ VIEW 3: 관리자 ══════════════ */
+  .admin-wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+  .admin-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; }
+  .admin-sub { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 36px; }
+  .form-card { background: var(--bg-card); border: 1px solid var(--border-gold); border-radius: 14px; padding: 28px 28px 32px; }
+  .form-section { margin-bottom: 24px; }
+  .form-label { font-size: 0.7rem; letter-spacing: 0.18em; color: var(--gold-mid); font-weight: 700; margin-bottom: 8px; display: block; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-input {
+    width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-size: 0.85rem;
+    font-family: inherit; outline: none; transition: border-color 0.15s;
+  }
+  .form-input:focus { border-color: var(--gold-mid); }
+  .form-input::placeholder { color: var(--text-muted); }
+  .upload-zone {
+    border: 2px dashed rgba(255,255,255,0.12); border-radius: 10px;
+    padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s;
+  }
+  .upload-zone:hover { border-color: var(--gold-mid); background: rgba(212,160,23,0.04); }
+  .upload-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-zone .label { font-size: 0.8rem; color: var(--text-sub); }
+  .upload-zone .hint { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; }
+  .featured-toggle {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(212,160,23,0.06); border: 1px solid var(--border-gold);
+    border-radius: 10px; padding: 14px 18px;
+  }
+  .toggle-switch {
+    position: relative; width: 42px; height: 24px; flex-shrink: 0;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0; background: rgba(255,255,255,0.1);
+    border-radius: 12px; cursor: pointer; transition: 0.2s;
+  }
+  .toggle-track::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: 0.2s;
+  }
+  input:checked + .toggle-track { background: var(--gold-mid); }
+  input:checked + .toggle-track::after { transform: translateX(18px); }
+  .toggle-info .title { font-size: 0.85rem; font-weight: 600; }
+  .toggle-info .desc { font-size: 0.72rem; color: var(--text-sub); margin-top: 2px; }
+  .auto-home-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(80,200,120,0.1); border: 1px solid rgba(80,200,120,0.35);
+    color: #50e090; font-size: 0.62rem; letter-spacing: 0.12em; font-weight: 700;
+    padding: 4px 12px; border-radius: 100px; margin-top: 10px;
+  }
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 24px 0; }
+  .submit-btn {
+    width: 100%; padding: 14px; background: var(--gold-mid); color: #111;
+    font-weight: 800; font-size: 0.9rem; letter-spacing: 0.1em; border: none;
+    border-radius: 10px; cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .submit-btn:hover { background: var(--gold-bright); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(212,160,23,0.3); }
+
+  /* 비교 패널 */
+  .compare-panel {
+    margin-top: 40px; background: var(--bg-card2); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 24px;
+  }
+  .compare-title { font-size: 0.72rem; letter-spacing: 0.2em; color: var(--text-muted); font-weight: 700; margin-bottom: 18px; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .compare-col .col-label { font-size: 0.68rem; letter-spacing: 0.15em; font-weight: 700; margin-bottom: 10px; }
+  .compare-col.old .col-label { color: #e05050; }
+  .compare-col.new .col-label { color: #50e090; }
+  .compare-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 0.75rem; color: var(--text-sub); margin-bottom: 8px; line-height: 1.5;
+  }
+  .compare-item .bullet { flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; margin-top: 1px; }
+  .compare-col.old .bullet { background: rgba(224,80,80,0.2); color: #e05050; }
+  .compare-col.new .bullet { background: rgba(80,200,120,0.2); color: #50e090; }
+
+  /* 반응형 */
+  @media (max-width: 700px) {
+    .timeline::before { left: 24px; }
+    .timeline-item { grid-template-columns: 48px 1fr; }
+    .timeline-item:nth-child(odd) .tl-card,
+    .timeline-item:nth-child(even) .tl-card { grid-column: 2; order: 2; }
+    .timeline-item:nth-child(odd) .tl-empty,
+    .timeline-item:nth-child(even) .tl-empty { display: none; }
+    .timeline-item:nth-child(odd) .tl-dot,
+    .timeline-item:nth-child(even) .tl-dot { grid-column: 1; order: 1; }
+    .form-row { grid-template-columns: 1fr; }
+    .compare-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 탭 네비 -->
+<nav class="tab-nav">
+  <span class="logo">성심당</span>
+  <button class="tab-btn active" onclick="switchTab('home')">홈 (자동화)</button>
+  <button class="tab-btn" onclick="switchTab('archive')">모델 아카이브</button>
+  <button class="tab-btn" onclick="switchTab('admin')">관리자 업로드</button>
+</nav>
+
+<!-- ══════ VIEW 1: 홈 ══════ -->
+<div id="view-home" class="view active">
+  <!-- 벚꽃 파티클 -->
+  <div id="petals"></div>
+
+  <!-- 자동 업데이트 배지 -->
+  <div class="auto-badge">
+    <div class="auto-dot"></div>
+    3월 모델 표시 중 · 자동 업데이트
+  </div>
+
+  <div class="hero">
+    <div class="hero-bg"></div>
+
+    <!-- 히어로 이미지 자리 (실제론 R2에서) -->
+    <div style="position:absolute;right:8%;bottom:0;height:88%;width:38%;
+      background:linear-gradient(135deg,#1a0a2e,#2a1040,#1a1530);
+      border-radius:20px 20px 0 0; display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:8px;">
+      <div style="font-size:4rem;filter:drop-shadow(0 0 30px rgba(212,160,23,0.4))">🌸</div>
+      <span style="font-size:0.65rem;letter-spacing:0.2em;color:rgba(255,255,255,0.3)">FEATURED MODEL IMAGE</span>
+      <span style="font-size:0.55rem;color:rgba(255,255,255,0.2)">갤러리 업로드 시 자동 반영</span>
+    </div>
+
+    <div class="hero-overlay"></div>
+
+    <div class="hero-content">
+      <!-- 자동으로 DB에서 불러온 데이터 -->
+      <div class="hero-badge">✦ 이달의 모델</div>
+      <div class="hero-month">2026년 3월</div>
+      <div class="hero-title">벚꽃 아래 두 소녀,<br><span>레기온을 물들이다</span></div>
+      <div class="hero-desc">벚꽃이 흩날리는 밤, 레기온이 선정한 3월의 모델을 만나보세요.</div>
+
+      <!-- 테마곡 (모델마다 다른 곡이 R2에서) -->
+      <div class="hero-music-bar">
+        <button class="music-play-btn" id="musicBtn" onclick="toggleMusic()">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="#111" id="musicIcon">
+            <polygon points="6,3 20,12 6,21" />
+          </svg>
+        </button>
+        <div class="music-info">
+          <div class="music-title">개화(開花)</div>
+          <div class="music-sub">LEGION THEME · 3월</div>
+        </div>
+        <div class="music-wave" id="musicWave" style="display:none">
+          <span style="height:4px"></span><span style="height:4px"></span>
+          <span style="height:4px"></span><span style="height:4px"></span>
+        </div>
+      </div>
+
+      <a class="hero-cta" onclick="switchTab('archive')">
+        역대 모델 보기 →
+      </a>
+    </div>
+
+    <!-- 우측 모델 인디케이터 (이전 모델들) -->
+    <div class="model-sidebar">
+      <div class="model-dot active">
+        <div class="model-dot-circle"></div>
+        <span class="model-dot-label">3월</span>
+      </div>
+      <div class="model-dot" style="opacity:0.35">
+        <div class="model-dot-circle empty"></div>
+        <span class="model-dot-label">4월</span>
+      </div>
+      <div class="model-dot" style="opacity:0.35">
+        <div class="model-dot-circle empty"></div>
+        <span class="model-dot-label">5월</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설명 카드 -->
+  <div style="max-width:900px;margin:0 auto;padding:48px 24px;">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+      <div style="background:var(--bg-card);border:1px solid var(--border-gold);border-radius:12px;padding:22px;">
+        <div style="font-size:1.4rem;margin-bottom:10px">⚡</div>
+        <div style="font-size:0.8rem;font-weight:700;margin-bottom:6px">자동 홈 업데이트</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.6">갤러리에서 "이달의 모델" 체크 시 홈이 자동으로 바뀝니다. 배포 불필요.</div>
+      </div>
+      <div style="background:var(--bg-card);border:1px solid var(--border-gold);border-radius:12px;padding:22px;">
+        <div style="font-size:1.4rem;margin-bottom:10px">🎵</div>
+        <div style="font-size:0.8rem;font-weight:700;margin-bottom:6px">모델별 테마곡</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.6">업로드 시 해당 월 테마곡을 함께 올리면 모델마다 다른 곡이 재생됩니다.</div>
+      </div>
+      <div style="background:var(--bg-card);border:1px solid var(--border-gold);border-radius:12px;padding:22px;">
+        <div style="font-size:1.4rem;margin-bottom:10px">📚</div>
+        <div style="font-size:0.8rem;font-weight:700;margin-bottom:6px">역대 아카이브</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.6">역대 이달의 모델이 타임라인으로 쌓여 사이트의 역사가 됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ VIEW 2: 아카이브 ══════ -->
+<div id="view-archive" class="view">
+  <div class="archive-wrap">
+    <div class="section-header">
+      <div class="eyebrow">✦ ─────── ✦</div>
+      <h1>이달의 모델 아카이브</h1>
+      <div class="sub">레기온이 선정한 매달의 모델</div>
+    </div>
+
+    <div class="timeline">
+
+      <!-- 3월 (현재) -->
+      <div class="timeline-item">
+        <div class="tl-card current-card" style="grid-column:1">
+          <div class="tl-card-img-placeholder">
+            <div style="font-size:3rem">🌸</div>
+            <span style="font-size:0.65rem;color:rgba(255,255,255,0.25);letter-spacing:0.15em">3월 모델 사진</span>
+          </div>
+          <div class="current-label">✦ 이달의 모델</div>
+          <div class="tl-card-body">
+            <div class="tl-month">2026년 3월</div>
+            <div class="tl-name">이린 & 명지아</div>
+            <div class="tl-desc">벚꽃이 흩날리는 밤, 레기온이 선정한 3월의 모델.</div>
+            <div class="tl-meta">
+              <span class="tl-tag pink">✦ 이달의 모델</span>
+              <span class="tl-tag gold">현재</span>
+            </div>
+            <div class="tl-music-chip">
+              <span>🎵</span><span>개화(開花) — LEGION THEME</span>
+            </div>
+          </div>
+        </div>
+        <div class="tl-dot" style="grid-column:2">
+          <div class="tl-dot-circle current">3월</div>
+        </div>
+        <div class="tl-empty" style="grid-column:3"></div>
+      </div>
+
+      <!-- 4월 (예정) -->
+      <div class="timeline-item">
+        <div class="tl-empty" style="grid-column:1"></div>
+        <div class="tl-dot" style="grid-column:2">
+          <div class="tl-dot-circle">4월</div>
+        </div>
+        <div style="grid-column:3">
+          <div class="upcoming-card">
+            <span class="plus">+</span>
+            <span>2026년 4월 모델 예정</span>
+            <span style="font-size:0.6rem;color:rgba(255,255,255,0.2)">갤러리 업로드 후 자동 등록</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5월 (예정) -->
+      <div class="timeline-item">
+        <div style="grid-column:1">
+          <div class="upcoming-card">
+            <span class="plus">+</span>
+            <span>2026년 5월 모델 예정</span>
+            <span style="font-size:0.6rem;color:rgba(255,255,255,0.2)">갤러리 업로드 후 자동 등록</span>
+          </div>
+        </div>
+        <div class="tl-dot" style="grid-column:2">
+          <div class="tl-dot-circle">5월</div>
+        </div>
+        <div class="tl-empty" style="grid-column:3"></div>
+      </div>
+
+    </div>
+
+    <!-- 미래 상상도 -->
+    <div style="text-align:center;margin-top:24px;padding:32px;background:var(--bg-card);border:1px dashed var(--border-gold);border-radius:14px;">
+      <div style="font-size:0.65rem;letter-spacing:0.25em;color:var(--gold-dark);margin-bottom:8px">미래의 아카이브</div>
+      <div style="font-size:0.85rem;color:var(--text-sub);line-height:1.8">
+        6개월 후엔 3월~8월 모델이 이 타임라인에 가득 채워집니다.<br>
+        레기온의 역사가 자연스럽게 쌓이는 구조입니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ VIEW 3: 관리자 ══════ -->
+<div id="view-admin" class="view">
+  <div class="admin-wrap">
+    <div class="admin-title">갤러리 업로드</div>
+    <div class="admin-sub">이달의 모델로 지정하면 홈 화면이 자동으로 업데이트됩니다.</div>
+
+    <div class="form-card">
+      <!-- 이달의 모델 토글 -->
+      <div class="form-section">
+        <div class="featured-toggle">
+          <label class="toggle-switch">
+            <input type="checkbox" id="featuredToggle" onchange="toggleFeatured()" checked />
+            <span class="toggle-track"></span>
+          </label>
+          <div class="toggle-info">
+            <div class="title">✦ 이달의 모델로 지정</div>
+            <div class="desc">켜면 홈 화면 히어로 이미지가 이 사진으로 자동 교체됩니다</div>
+          </div>
+        </div>
+        <div class="auto-home-badge" id="autoBadge">
+          <span>●</span> 홈 자동 업데이트 활성화됨
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- 기본 정보 -->
+      <div class="form-section">
+        <label class="form-label">기본 정보</label>
+        <div class="form-row">
+          <div>
+            <label style="font-size:0.7rem;color:var(--text-muted);margin-bottom:5px;display:block">촬영 날짜</label>
+            <input class="form-input" type="date" value="2026-04-15" />
+          </div>
+          <div>
+            <label style="font-size:0.7rem;color:var(--text-muted);margin-bottom:5px;display:block">업로더</label>
+            <input class="form-input" type="text" placeholder="관리자 닉네임" value="Chan" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 사진 업로드 -->
+      <div class="form-section">
+        <label class="form-label">대표 사진</label>
+        <div class="upload-zone" id="photoZone" onclick="this.style.borderColor='var(--gold-mid)'">
+          <div class="icon">📸</div>
+          <div class="label">사진을 드래그하거나 클릭해서 업로드</div>
+          <div class="hint">WebP, JPG, PNG · 최대 10MB</div>
+        </div>
+      </div>
+
+      <!-- 테마곡 업로드 (이달의 모델 전용) -->
+      <div class="form-section" id="musicSection">
+        <label class="form-label">🎵 테마곡 <span style="font-weight:400;color:var(--text-muted);letter-spacing:0">(이달의 모델 전용)</span></label>
+        <div class="upload-zone" style="border-color:rgba(212,160,23,0.25)">
+          <div class="icon">🎵</div>
+          <div class="label">테마곡을 업로드하세요</div>
+          <div class="hint">MP3, WAV, OGG · 최대 20MB · 업로드하지 않으면 기본 테마곡 사용</div>
+        </div>
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(212,160,23,0.06);border-radius:8px;font-size:0.72rem;color:var(--text-sub)">
+          💡 이 모델의 갤러리 페이지와 홈 화면에서 이 곡이 재생됩니다.
+        </div>
+      </div>
+
+      <!-- 설명 -->
+      <div class="form-section">
+        <label class="form-label">홈 화면 표시 텍스트</label>
+        <div style="margin-bottom:10px">
+          <label style="font-size:0.7rem;color:var(--text-muted);margin-bottom:5px;display:block">제목</label>
+          <input class="form-input" type="text" placeholder="예: 봄날의 두 소녀, 레기온에 꽃피다" />
+        </div>
+        <div>
+          <label style="font-size:0.7rem;color:var(--text-muted);margin-bottom:5px;display:block">부제</label>
+          <input class="form-input" type="text" placeholder="예: 봄바람이 부는 4월, 레기온이 선정한 모델을 만나보세요." />
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <button class="submit-btn">업로드 → 홈 자동 반영</button>
+    </div>
+
+    <!-- 현재 vs 데이터드리븐 비교 -->
+    <div class="compare-panel">
+      <div class="compare-title">현재 방식 vs 데이터 드리븐 비교</div>
+      <div class="compare-grid">
+        <div class="compare-col old">
+          <div class="col-label">❌ 현재 방식</div>
+          <div class="compare-item">
+            <div class="bullet">✕</div>
+            <span>새 모델마다 코드 수정 후 배포 필요</span>
+          </div>
+          <div class="compare-item">
+            <div class="bullet">✕</div>
+            <span>테마곡이 하드코딩 — 4월에도 3월 곡 재생</span>
+          </div>
+          <div class="compare-item">
+            <div class="bullet">✕</div>
+            <span>역대 모델 아카이브 없음</span>
+          </div>
+          <div class="compare-item">
+            <div class="bullet">✕</div>
+            <span>개발자 없이 홈 변경 불가</span>
+          </div>
+        </div>
+        <div class="compare-col new">
+          <div class="col-label">✅ 데이터 드리븐</div>
+          <div class="compare-item">
+            <div class="bullet">✓</div>
+            <span>갤러리 업로드만으로 홈 자동 교체</span>
+          </div>
+          <div class="compare-item">
+            <div class="bullet">✓</div>
+            <span>모델마다 개별 테마곡 재생</span>
+          </div>
+          <div class="compare-item">
+            <div class="bullet">✓</div>
+            <span>역대 모델 타임라인 자동 생성</span>
+          </div>
+          <div class="compare-item">
+            <div class="bullet">✓</div>
+            <span>관리자가 직접 모든 것 제어</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── 탭 전환 ──
+  function switchTab(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'))
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+    document.getElementById('view-' + name).classList.add('active')
+    const btns = document.querySelectorAll('.tab-btn')
+    const map = { home:0, archive:1, admin:2 }
+    btns[map[name]].classList.add('active')
+    window.scrollTo(0, 0)
+  }
+
+  // ── 벚꽃 파티클 ──
+  const petalsContainer = document.getElementById('petals')
+  for (let i = 0; i < 22; i++) {
+    const p = document.createElement('div')
+    p.className = 'petal'
+    p.style.left = Math.random() * 100 + 'vw'
+    p.style.top = '-20px'
+    p.style.width = (6 + Math.random() * 6) + 'px'
+    p.style.height = p.style.width
+    p.style.animationDuration = (6 + Math.random() * 8) + 's'
+    p.style.animationDelay = (-Math.random() * 12) + 's'
+    p.style.opacity = 0.4 + Math.random() * 0.5
+    p.style.position = 'fixed'
+    p.style.pointerEvents = 'none'
+    p.style.zIndex = 1
+    petalsContainer.appendChild(p)
+  }
+
+  // ── 음악 토글 ──
+  let playing = false
+  function toggleMusic() {
+    playing = !playing
+    const btn = document.getElementById('musicBtn')
+    const icon = document.getElementById('musicIcon')
+    const wave = document.getElementById('musicWave')
+    if (playing) {
+      btn.style.background = 'rgba(212,160,23,0.85)'
+      icon.innerHTML = '<rect x="5" y="3" width="5" height="18" rx="1"/><rect x="14" y="3" width="5" height="18" rx="1"/>'
+      wave.style.display = 'flex'
+    } else {
+      btn.style.background = 'var(--gold-mid)'
+      icon.innerHTML = '<polygon points="6,3 20,12 6,21"/>'
+      wave.style.display = 'none'
+    }
+  }
+
+  // ── 이달의 모델 토글 ──
+  function toggleFeatured() {
+    const checked = document.getElementById('featuredToggle').checked
+    const badge = document.getElementById('autoBadge')
+    const musicSection = document.getElementById('musicSection')
+    badge.style.display = checked ? 'inline-flex' : 'none'
+    musicSection.style.display = checked ? 'block' : 'none'
+  }
+</script>
+</body>
+</html>

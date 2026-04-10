@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { memberApi, siteSettingsApi, type SiteSettings } from '@/lib/api'
 import { renderHtml } from '@/components/RichTextEditor'
 import type { Member } from '@/types'
-import SuperAdminHero from '@/components/SuperAdminHero'
 
 // 홈 화면에 표시할 주요 직급 (이 목록에 없는 직급은 홈에서 숨김)
 const FEATURED_ROLES = ['군단장', '엘리트장교', '명예장교']
@@ -197,17 +195,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [settings, setSettings] = useState<SiteSettings>({ join_conditions: '', join_method: '' })
-  const [heroRoot, setHeroRoot] = useState<Element | null>(null)
-
-  // 히어로 초기화
-  useEffect(() => {
-    document.body.setAttribute('data-hero', '1')
-    setHeroRoot(document.getElementById('hero-root'))
-    return () => {
-      document.body.removeAttribute('data-hero')
-    }
-  }, [])
-
   function loadMembers() {
     setLoading(true)
     setError(false)
@@ -236,9 +223,6 @@ export default function HomePage() {
 
   return (
     <>
-      {/* 풀스크린 히어로 (포탈로 main 바깥에 렌더링) */}
-      {heroRoot && createPortal(<SuperAdminHero />, heroRoot)}
-
         {/* ── 새 디자인 ── */}
         <div style={{ width: '100%', background: 'var(--bg-base)' }}>
 

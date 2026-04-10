@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { memberApi, siteSettingsApi, type SiteSettings } from '@/lib/api'
 import { renderHtml } from '@/components/RichTextEditor'
 import type { Member } from '@/types'

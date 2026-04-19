@@ -6,3 +6,8 @@ out/
 .next/
 dist/
 *.log
+
+# pipeline
+pipeline/.env
+pipeline/__pycache__/
+pipeline/.venv/

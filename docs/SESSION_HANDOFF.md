@@ -36,7 +36,7 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: `da64113`
+- **최신 커밋**: `fa10f0b`
 - **브랜치**: master (직접 커밋 방식)
 
 ### 완료 Task
@@ -44,9 +44,10 @@
 - ✅ Task 2: Supabase SQL 스키마 (`001_voice_tracker.sql` 작성, **실행은 주찬이 직접**)
 - ✅ Task 3: TypeScript 타입 수동 작성 (`supabase/types.ts`)
 - ✅ Task 4: pipeline/ Python 세팅 (pyproject.toml, config.py, db.py)
+- ✅ Task 5: 인벤 크롤러 (`collectors/inven.py`, `scripts/test_inven.py`)
 
 ### 다음 Task
-- ⏳ **Task 5**: `pipeline/src/collectors/inven.py` — 인벤 Aion 2 크롤러
+- ⏳ **Task 6**: 정규식 스팸 필터 (`pipeline/src/processors/filter.py`)
 
 ---
 

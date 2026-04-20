@@ -57,17 +57,18 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: `da64113` (docs: master 직접 커밋 전략으로 전환)
-- **현재 브랜치**: master (직접 커밋 방식으로 전환)
+- **최신 커밋**: `fa10f0b` (feat: Task 5 — 인벤 Aion 2 크롤러 구현)
+- **현재 브랜치**: master (직접 커밋 방식)
 
 ### 완료된 Task
 - ✅ Task 1: 폴더 구조 생성 (pipeline/, supabase/migrations/, docs/)
 - ✅ Task 2: Supabase 스키마 마이그레이션 (`001_voice_tracker.sql`)
 - ✅ Task 3: TypeScript 타입 수동 작성 (`supabase/types.ts`)
 - ✅ Task 4: pipeline/ Python 프로젝트 세팅 (pyproject.toml, config.py, db.py)
+- ✅ Task 5: 인벤 크롤러 구현 (`collectors/inven.py`, `scripts/test_inven.py`)
 
 ### 다음 Task
-- ⏳ **Task 5**: `pipeline/src/collectors/inven.py` 인벤 Aion 2 크롤러 구현
+- ⏳ **Task 6**: 정규식 스팸 필터 (`pipeline/src/processors/filter.py`)
 
 ### 외부 서비스 상태
 - **Supabase**: 프로젝트 미생성 (주찬이 직접 생성 예정). SQL 실행 상태 **확인 필요**

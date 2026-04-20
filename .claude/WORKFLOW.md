@@ -65,6 +65,22 @@ Conventional commits 형식:
 
 문서 파일명 규칙: docs/learning/NN-topic.md (번호 순서)
 
+## 컨텍스트 문서 자동 업데이트
+
+매 Task 완료 시 다음 두 파일 "현재 진행 상태" 섹션 자동 업데이트:
+
+1. .claude/CONTEXT.md
+2. docs/SESSION_HANDOFF.md
+
+업데이트 내용:
+- 완료 Task 번호
+- 다음 Task 번호
+- 최신 커밋 해시 (git log로 확인)
+- 외부 서비스 상태 변경
+- 새로 생긴 미해결 이슈 (있으면)
+
+해당 Task 커밋에 포함 (별도 커밋 X).
+
 ## Git 브랜치 전략
 
 주찬은 1인 프로젝트로 운영하며, 터미널에서 직접 git 명령을 실행하지 않는다.

@@ -21,6 +21,8 @@
 - [../PROJECT.md](../PROJECT.md) — 프로젝트 개요
 - [../decisions/](../decisions/) — 왜 이런 선택을 했는지 (ADR)
 - [../journal/](../journal/) — 일별 작업 일지
+- [../SESSION_HANDOFF.md](../SESSION_HANDOFF.md) — 새 세션 핸드오프 (Claude.ai 붙여넣기용)
+- [../../.claude/CONTEXT.md](../../.claude/CONTEXT.md) — Claude Code 컨텍스트 스냅샷
 
 ## 학습 팁
 

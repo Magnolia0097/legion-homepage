@@ -27,7 +27,7 @@ legion-homepage/
 ```
 
 **Claude Code 프롬프트 예시:**
-> 이 레포에 `/pipeline`, `/supabase/migrations`, `/docs` 폴더 만들고, 각 폴더에 README 스텁 넣어줘. `.gitignore`에 `pipeline/.env`, `pipeline/__pycache__`, `pipeline/.venv` 추가해줘. Cloudflare Pages가 pipeline 폴더 무시하도록 `.cloudflareignore` 또는 빌드 설정 확인해줘.
+> 이 레포에 `/pipeline`, `/supabase/migrations`, `/docs` 폴더 만들고, 각 폴더에 README 스텁 넣어줘. `.gitignore`에 `pipeline/.env`, `pipeline/__pycache__`, `pipeline/.venv` 추가해줘. (Cloudflare Pages Root가 frontend/로 설정되어 있어 pipeline 폴더는 자동 제외됨)
 
 ### Task 2: Supabase 스키마 마이그레이션
 `supabase/migrations/001_voice_tracker.sql` 파일 작성:
@@ -311,7 +311,7 @@ JSON만 출력 (설명 금지):
 ```python
 def main():
     # 1. 수집
-    new_posts = collect_reddit()
+    new_posts = collect_inven_aion2()
     saved = save_posts(new_posts)
     print(f"Saved {saved} new posts")
 
@@ -416,6 +416,6 @@ export async function GET() {
 2. **프론트에서는 anon key + RLS 정책으로만 접근**.
 3. **Cloudflare Pages 빌드 설정**:
    - Build command: `npm run build`
-   - Build output: `.next`
-   - Root directory: `/` (pipeline 폴더는 빌드에 포함되지 않음)
+   - Build output: `out`
+   - Root directory: `frontend` (pipeline/ 폴더는 Cloudflare Pages에게 안 보임 (Root가 frontend/라서))
 4. **Gemini API 키 rate limit 주의** — 1분에 15회 호출 넘기지 말 것.

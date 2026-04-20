@@ -64,3 +64,19 @@ Conventional commits 형식:
    - 관련 외부 링크 (공식 문서 등)
 
 문서 파일명 규칙: docs/learning/NN-topic.md (번호 순서)
+
+## Git 브랜치 전략
+
+주찬은 1인 프로젝트로 운영하며, 터미널에서 직접 git 명령을 실행하지 않는다.
+모든 git 작업은 Claude Code가 처리한다.
+
+### 규칙
+- 모든 작업은 master 브랜치에서 직접 진행
+- 새 브랜치 생성 금지
+- PR 생성 금지 (1인 프로젝트라 불필요)
+- 직접 master에 커밋/푸시
+- 커밋 메시지는 Conventional Commits 형식
+
+### 예외
+- 대규모 리팩토링 (Week 종료 시점)에만 PR 생성 가능
+- 사전에 주찬에게 확인 후 진행

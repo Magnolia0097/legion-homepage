@@ -128,3 +128,26 @@ API 등록이 중단되었음을 확인.
 - 인벤 Aion 2: https://aion2.inven.co.kr/
 - 한국 저작권법 제35조의5 (공정이용): 저작물 정상적 이용 및 저작자 정당한
   이익을 부당하게 해치지 않는 범위에서 이용 가능
+
+## 검증 기록
+
+### 인벤 robots.txt 확인 (2026-04-21)
+
+**확인 URL**: https://www.inven.co.kr/robots.txt
+
+**Disallow 경로 목록 (주요):**
+```
+Disallow: /search/
+Disallow: /common/admin/
+Disallow: /board/*/prevnext.php
+User-agent: Wget  → 전체 차단 (Disallow: /)
+```
+
+**우리 프로젝트 수집 경로**: `/board/aion2/6388/*`
+→ Disallow 목록에 없음 — **크롤링 허용**
+
+**User-Agent 영향도**: Wget 전체 차단 규칙은 `User-agent: Wget`에만 적용.
+본 프로젝트는 `legion-voice-tracker/0.1` 커스텀 UA 사용 → **해당 없음**
+
+**결론**: `/board/aion2/*` 경로는 robots.txt 제약 없음. 수집 정책(3~5초 간격,
+1페이지 제한) 준수 시 기술적·정책적 제약 없음.

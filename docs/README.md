@@ -17,6 +17,7 @@
 | [001](./001-supabase-database.md) | Supabase 데이터베이스 채택 | Accepted |
 | [002](./002-monorepo-structure.md) | 모노레포 구조 채택 | Accepted |
 | [003](./003-mini-batch-scheduling.md) | 미니배치 스케줄링 방식 | Accepted |
+| [004](./decisions/004-data-source-pivot.md) | 1순위 데이터 소스 Reddit → 인벤 변경 | Accepted |
 
 ## 개발 일지
 

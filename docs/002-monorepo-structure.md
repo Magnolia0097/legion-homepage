@@ -54,11 +54,13 @@
 
 ```
 legion-homepage/
-├── app/                        # Next.js 앱 (기존)
-│   ├── (기존 페이지들)/
-│   ├── 반응/                   # 신규 대시보드
-│   └── api/voice/              # 신규 API Routes
-├── components/                 # React 컴포넌트
+├── frontend/                   # Next.js 앱 (기존, Cloudflare Pages Root directory)
+│   ├── app/
+│   │   ├── (기존 페이지들)/
+│   │   ├── 반응/               # 신규 대시보드
+│   │   └── api/voice/          # 신규 API Routes
+│   ├── components/
+│   └── ...
 ├── pipeline/                   # 신규 — Python 파이프라인
 │   ├── pyproject.toml
 │   ├── src/
@@ -66,17 +68,18 @@ legion-homepage/
 ├── supabase/                   # 신규 — 공유 DB 스키마
 │   ├── migrations/
 │   └── types.ts                # 자동 생성 (TS 타입)
-├── docs/                       # 신규 — 설계 문서
+├── docs/                       # 기존 + 신규 README
+│   ├── README.md
 │   ├── PROJECT.md
 │   └── decisions/
-└── package.json                # Node 의존성 (기존)
+└── .gitignore
 ```
 
 ## Cloudflare Pages 빌드 시 주의점
 
 - Build command: `npm run build` (기존)
-- Root directory: `/` (변경 없음)
-- `/pipeline` 폴더는 Next.js 빌드에 포함되지 않음 (Next.js가 `app/`, `pages/`만 인식)
+- Root directory: `frontend/` (Cloudflare Pages 설정)
+- Cloudflare Pages Root directory가 `frontend/`로 설정되어 있어 `.cloudflareignore` 없이도 `pipeline/`이 빌드에서 자동 제외됨
 - 빌드 시간에 영향 없음
 
 ## 결과 및 위험

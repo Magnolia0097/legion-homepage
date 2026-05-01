@@ -57,7 +57,7 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: feat: Task 7 — Gemini 감성 분류기 구현 (12/12 테스트 통과)
+- **최신 커밋**: feat: Task 8 — 파이프라인 오케스트레이터 구현 (6/6 테스트 통과)
 - **현재 브랜치**: master (직접 커밋 방식)
 
 ### 완료된 Task
@@ -75,9 +75,15 @@
   - 12/12 pytest 통과 (mock 기반)
   - google-genai 신 SDK 사용 (google-generativeai deprecated 대응)
   - 학습 문서: `docs/learning/06-llm-classification.md`
+- ✅ Task 8: 파이프라인 오케스트레이터 (`scripts/run_pipeline.py`, `tests/test_run_pipeline.py`)
+  - 6/6 pytest 통과 (mock 기반)
+  - db.py에 `fetch_unclassified`, `mark_as_spam` 추가
+  - `.env` SUPABASE_URL 플레이스홀더 수정 (xxxx → ospcbkfmsxludkoshcxt)
+  - 학습 문서: `docs/learning/07-pipeline-orchestrator.md`
 
 ### 다음 Task
-- ⏳ **Task 8**: 파이프라인 오케스트레이터 (`pipeline/scripts/run_pipeline.py`)
+- ⏳ **Task 9**: cron 등록 (로컬 PC)
+- ⏳ **Task 10**: 집계 테이블 갱신 로직 (`pipeline/src/aggregators/hourly.py`)
 
 ### 외부 서비스 상태
 - **Supabase**: 프로젝트 미생성 (주찬이 직접 생성 예정). SQL 실행 상태 **확인 필요**

@@ -1,0 +1,89 @@
+"""파이프라인 메인 진입점.
+
+실행 순서:
+1. 수집  — collect_inven_aion2 → save_posts
+2. 필터  — is_spam → mark_as_spam (sentiment='spam')
+3. 분류  — classify_post → update_classification (Gemini Flash)
+4. 집계  — refresh_hourly_stats (Task 10에서 추가 예정)
+
+cron으로 30분마다 실행:
+    */30 * * * * cd /path/to/legion-homepage/pipeline && uv run python scripts/run_pipeline.py >> logs/pipeline.log 2>&1
+"""
+
+from __future__ import annotations
+
+import logging
+import sys
+import time
+from pathlib import Path
+
+# scripts/ 디렉토리에서 실행할 때 src 패키지를 찾기 위해 파이프라인 루트를 sys.path에 추가
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.collectors.inven import collect_inven_aion2, save_posts
+from src.db import fetch_unclassified, mark_as_spam
+from src.processors.classifier import classify_post, update_classification
+from src.processors.filter import is_spam
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
+_CLASSIFY_SLEEP = 4.0  # Gemini Flash 무료 15 RPM → 4초 간격 유지
+
+
+def main() -> None:
+    logger.info("=== 파이프라인 시작 ===")
+
+    # ── 1. 수집 ──────────────────────────────────────────────────────────────
+    try:
+        collected = collect_inven_aion2(board_id=6388, max_pages=1)
+        saved = save_posts(collected)
+        logger.info("수집/저장: %d건 수집, %d건 신규 저장", len(collected), saved)
+    except Exception as exc:
+        logger.error("수집 단계 실패: %s", exc)
+        collected = []
+        saved = 0
+
+    # ── 2. 미분류 게시글 가져오기 ─────────────────────────────────────────────
+    unclassified = fetch_unclassified(limit=50)
+    logger.info("미분류 게시글: %d건", len(unclassified))
+
+    spam_count = 0
+    classified_count = 0
+    failed_count = 0
+
+    for post in unclassified:
+        post_id = post["id"]
+
+        # ── 3. 필터 (Tier-1) ─────────────────────────────────────────────────
+        if is_spam(post):
+            mark_as_spam(post_id)
+            spam_count += 1
+            continue
+
+        # ── 4. 분류 (Tier-2 Gemini) ───────────────────────────────────────────
+        result = classify_post(post)
+        if result is None:
+            failed_count += 1
+            continue
+
+        update_classification(post_id, result)
+        classified_count += 1
+        time.sleep(_CLASSIFY_SLEEP)
+
+    logger.info(
+        "처리 완료 — 스팸: %d건, 분류 성공: %d건, 분류 실패: %d건",
+        spam_count, classified_count, failed_count,
+    )
+    logger.info(
+        "=== 파이프라인 종료 (수집 %d건 / 스팸 %d / 분류 %d / 실패 %d) ===",
+        saved, spam_count, classified_count, failed_count,
+    )
+
+
+if __name__ == "__main__":
+    main()

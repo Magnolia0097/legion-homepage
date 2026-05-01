@@ -9,5 +9,6 @@ dist/
 
 # pipeline
 pipeline/.env
-pipeline/__pycache__/
+**/__pycache__/
+*.pyc
 pipeline/.venv/

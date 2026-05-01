@@ -57,6 +57,11 @@ def _check_robots(target_url: str) -> bool:
     except Exception as exc:
         logger.warning(f"robots.txt 읽기 실패, 허용으로 간주: {exc}")
         return True
+    # Python RobotFileParser는 robots.txt가 403 반환 시 disallow_all=True로 설정.
+    # 서버가 robots.txt 자체를 거부한 것이므로 허용으로 간주 (ADR 004: /board/aion2/* 허용 확인).
+    if rp.disallow_all:
+        logger.warning("robots.txt 403 응답, 규칙 없음으로 간주 (허용)")
+        return True
     allowed = rp.can_fetch(settings.inven_user_agent, target_url)
     if not allowed:
         logger.warning(f"robots.txt 차단: {target_url}")

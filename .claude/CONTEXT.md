@@ -57,7 +57,7 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: `fa10f0b` (feat: Task 5 — 인벤 Aion 2 크롤러 구현)
+- **최신 커밋**: Task 6 커밋 후 업데이트 예정
 - **현재 브랜치**: master (직접 커밋 방식)
 
 ### 완료된 Task
@@ -66,9 +66,15 @@
 - ✅ Task 3: TypeScript 타입 수동 작성 (`supabase/types.ts`)
 - ✅ Task 4: pipeline/ Python 프로젝트 세팅 (pyproject.toml, config.py, db.py)
 - ✅ Task 5: 인벤 크롤러 구현 (`collectors/inven.py`, `scripts/test_inven.py`)
+  - ⚠️ 샌드박스 네트워크 제한 → 실제 수집 테스트는 로컬 PC에서 필요
+  - `_check_robots()` 버그 수정: robots.txt 403 시 허용으로 간주
+- ✅ Task 6: 정규식 스팸 필터 (`processors/filter.py`, `tests/test_filter.py`)
+  - 22/22 pytest 통과
+  - 학습 문서: `docs/learning/05-filter-design.md`
 
 ### 다음 Task
-- ⏳ **Task 6**: 정규식 스팸 필터 (`pipeline/src/processors/filter.py`)
+- ⏳ **Task 7**: Gemini LLM 분류기 (`pipeline/src/processors/classifier.py`)
+  - ⚠️ LLM 프롬프트 설계는 주찬님 검토 후 진행 필요
 
 ### 외부 서비스 상태
 - **Supabase**: 프로젝트 미생성 (주찬이 직접 생성 예정). SQL 실행 상태 **확인 필요**

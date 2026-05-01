@@ -57,7 +57,7 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: Task 6 커밋 예정 (feat: Task 6 — 정규식 스팸 필터 + pytest 22/22)
+- **최신 커밋**: feat: Task 7 — Gemini 감성 분류기 구현 (12/12 테스트 통과)
 - **현재 브랜치**: master (직접 커밋 방식)
 
 ### 완료된 Task
@@ -71,10 +71,13 @@
 - ✅ Task 6: 정규식 스팸 필터 (`processors/filter.py`, `tests/test_filter.py`)
   - 22/22 pytest 통과
   - 학습 문서: `docs/learning/05-filter-design.md`
+- ✅ Task 7: Gemini 감성 분류기 (`processors/classifier.py`, `tests/test_classifier.py`)
+  - 12/12 pytest 통과 (mock 기반)
+  - google-genai 신 SDK 사용 (google-generativeai deprecated 대응)
+  - 학습 문서: `docs/learning/06-llm-classification.md`
 
 ### 다음 Task
-- ⏳ **Task 7**: Gemini LLM 분류기 (`pipeline/src/processors/classifier.py`)
-  - ⚠️ LLM 프롬프트 설계는 주찬님 검토 후 진행 필요
+- ⏳ **Task 8**: 파이프라인 오케스트레이터 (`pipeline/scripts/run_pipeline.py`)
 
 ### 외부 서비스 상태
 - **Supabase**: 프로젝트 미생성 (주찬이 직접 생성 예정). SQL 실행 상태 **확인 필요**

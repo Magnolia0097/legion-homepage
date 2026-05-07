@@ -1,5 +1,27 @@
 # 작업 워크플로우 (주찬 전용)
 
+## 민감 파일 보호 (필수 규칙)
+
+다음 패턴의 파일은 절대 git add 또는 git commit하지 말 것:
+- *.env (단 .env.example 제외)
+- *.key, *.pem
+- secrets.json, credentials.json
+- 그 외 API 키/토큰 포함 가능 파일
+
+### 자동 검증 절차
+1. git add 전 항상 git status로 staged 파일 확인
+2. 위 패턴이 staged에 있으면:
+   - 즉시 멈추고 주찬에게 보고
+   - 자동 커밋하지 말 것
+3. 의심스러우면 git diff --cached로 내용 검증
+
+### 위반 시 대응
+- 즉시 git restore --staged <파일> 또는 git rm --cached <파일>
+- 주찬에게 노출 가능성 보고
+- docs/SECURITY_NOTES.md에 사고 기록 추가
+
+---
+
 ## 자동 진행 원칙
 다음 작업은 diff 확인 요청 없이 자동으로 커밋/푸시:
 - 문서 변경 (docs/)

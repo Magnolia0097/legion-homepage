@@ -13,3 +13,4 @@ pipeline/.env
 *.pyc
 pipeline/.venv/
 pipeline/logs/
+pipeline/backups/

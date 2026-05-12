@@ -4,7 +4,7 @@
 1. 수집  — collect_inven_aion2 → save_posts
 2. 필터  — is_spam → mark_as_spam (sentiment='spam')
 3. 분류  — classify_post → update_classification (Gemini Flash)
-4. 집계  — refresh_hourly_stats (Task 10에서 추가 예정)
+4. 집계  — refresh_hourly_stats / refresh_daily_stats
 
 cron으로 30분마다 실행:
     */30 * * * * cd /path/to/legion-homepage/pipeline && uv run python scripts/run_pipeline.py >> logs/pipeline.log 2>&1
@@ -20,6 +20,7 @@ from pathlib import Path
 # scripts/ 디렉토리에서 실행할 때 src 패키지를 찾기 위해 파이프라인 루트를 sys.path에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.aggregators.hourly import refresh_daily_stats, refresh_hourly_stats
 from src.collectors.inven import collect_inven_aion2, save_posts
 from src.db import fetch_unclassified, mark_as_spam
 from src.processors.classifier import classify_post, update_classification
@@ -79,9 +80,18 @@ def main() -> None:
         "처리 완료 — 스팸: %d건, 분류 성공: %d건, 분류 실패: %d건",
         spam_count, classified_count, failed_count,
     )
+    # ── 5. 집계 갱신 ─────────────────────────────────────────────────────────
+    try:
+        hourly = refresh_hourly_stats(hours_back=3)
+        daily = refresh_daily_stats(days_back=2)
+        logger.info("집계: hourly %d개 시간대, daily %d개 일자", hourly, daily)
+    except Exception as exc:
+        logger.error("집계 단계 실패: %s", exc)
+        hourly = daily = 0
+
     logger.info(
-        "=== 파이프라인 종료 (수집 %d건 / 스팸 %d / 분류 %d / 실패 %d) ===",
-        saved, spam_count, classified_count, failed_count,
+        "=== 파이프라인 종료 (수집 %d건 / 스팸 %d / 분류 %d / 실패 %d / 집계 hourly %d daily %d) ===",
+        saved, spam_count, classified_count, failed_count, hourly, daily,
     )
 
 

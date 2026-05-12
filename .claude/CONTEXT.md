@@ -57,7 +57,7 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: feat: Task 10 — 집계 모듈 구현 (50/50 테스트 통과)
+- **최신 커밋**: Merge branch 'claude/create-folder-structure-Cd1D0' into master (PR #4)
 - **현재 브랜치**: master (직접 커밋 방식)
 
 ### 완료된 Task
@@ -80,10 +80,15 @@
   - db.py에 `fetch_unclassified`, `mark_as_spam` 추가
   - `.env` SUPABASE_URL 플레이스홀더 수정 (xxxx → ospcbkfmsxludkoshcxt)
   - 학습 문서: `docs/learning/07-pipeline-orchestrator.md`
+- ✅ Task 9: cron 실행 스크립트 (`scripts/run.sh`, 학습문서 `docs/learning/08-cron-setup.md`)
+- ✅ Task 10: 집계 모듈 (`pipeline/src/aggregators/hourly.py`, `tests/test_aggregators.py`)
+  - refresh_hourly_stats / refresh_daily_stats 구현
+  - run_pipeline.py 5단계(집계) 통합
+  - 학습 문서: `docs/learning/09-aggregation.md`
+- ✅ 브랜치 정리: PR #4 → master 머지 완료 (merge commit)
 
 ### 다음 Task
-- ⏳ **Task 9**: cron 등록 (로컬 PC)
-- ⏳ **Task 10**: 집계 테이블 갱신 로직 (`pipeline/src/aggregators/hourly.py`)
+- ⏳ **Task 11~13**: Next.js 대시보드 "반응" 탭 (frontend/)
 
 ### 외부 서비스 상태
 - **Supabase**: 프로젝트 미생성 (주찬이 직접 생성 예정). SQL 실행 상태 **확인 필요**
@@ -112,7 +117,7 @@
 
 1. **Supabase 미설정**: `001_voice_tracker.sql` 대시보드 SQL Editor에서 실행 필요
 2. **`.env` 미생성**: `pipeline/.env.example`을 복사해서 키 입력 필요
-3. **원격 브랜치 삭제 실패**: GitHub 403 에러 (이미 삭제됐거나 권한 이슈, 영향 없음)
+3. **cron 미등록**: 로컬 PC에서 `crontab -e` 로 `scripts/run.sh` 등록 필요 (08-cron-setup.md 참고)
 
 ---
 

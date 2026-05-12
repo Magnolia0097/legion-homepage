@@ -36,7 +36,7 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: Task 6 커밋 참조
+- **최신 커밋**: Merge PR #4 — Tasks 7~10 파이프라인 완성
 - **브랜치**: master (직접 커밋 방식)
 
 ### 완료 Task
@@ -44,12 +44,15 @@
 - ✅ Task 2: Supabase SQL 스키마 (`001_voice_tracker.sql` 작성, **실행은 주찬이 직접**)
 - ✅ Task 3: TypeScript 타입 수동 작성 (`supabase/types.ts`)
 - ✅ Task 4: pipeline/ Python 세팅 (pyproject.toml, config.py, db.py)
-- ✅ Task 5: 인벤 크롤러 (`collectors/inven.py`, `scripts/test_inven.py`)
-  - 로컬 PC에서 `cd pipeline && uv run python scripts/test_inven.py` 실행 필요
-- ✅ Task 6: 정규식 스팸 필터 (`processors/filter.py`, `tests/test_filter.py`) — 22/22 통과
+- ✅ Task 5: 인벤 크롤러 (`collectors/inven.py`) — 로컬 PC에서 실행 필요
+- ✅ Task 6: 정규식 스팸 필터 (`processors/filter.py`) — 22/22 통과
+- ✅ Task 7: Gemini 감성 분류기 (`processors/classifier.py`) — 12/12 통과
+- ✅ Task 8: 파이프라인 오케스트레이터 (`scripts/run_pipeline.py`) — 40/40 통과
+- ✅ Task 9: cron 실행 스크립트 (`scripts/run.sh`) — 로컬 PC에서 crontab 등록 필요
+- ✅ Task 10: 집계 모듈 (`aggregators/hourly.py`) — refresh_hourly/daily_stats
 
 ### 다음 Task
-- ⏳ **Task 7**: Gemini LLM 분류기 — 주찬님 검토 후 진행
+- ⏳ **Task 11~13**: Next.js 대시보드 "반응" 탭 (`frontend/`)
 
 ---
 
@@ -140,23 +143,21 @@
 
 1. Supabase `001_voice_tracker.sql` 대시보드 SQL Editor에서 실행 필요
 2. `pipeline/.env` 파일 주찬이 직접 생성 (`pipeline/.env.example` 복사 후 키 입력)
-3. Gemini API 키 발급 필요
+3. Gemini API 키 발급 필요 (Google AI Studio)
+4. cron 등록 필요 — `docs/learning/08-cron-setup.md` 참고
 
 ---
 
-## 다음 작업 (Task 5)
+## 다음 작업 (Task 11~13)
 
-**파일**: `pipeline/src/collectors/inven.py`
+**목표**: Next.js 대시보드 "반응" 탭
 
 **구현 내용**:
-- `collect_inven_aion2(board_id=6388, max_pages=1, sleep_seconds=3.0)`
-- `parse_post_list(html: str) → list[dict]`
-- `save_posts(posts: list[dict]) → int`
-- robots.txt 자동 체크 (`urllib.robotparser`)
-- `time.sleep(3)` 필수 (IP 차단 방지)
-- 반환 스키마: `source="inven_aion2"`, `external_id=f"6388_{post_id}"`
+- `frontend/app/(tabs)/reactions/` 페이지
+- voice_hourly_stats / voice_daily_stats 데이터 연결
+- sentiment 분포 차트, 키워드 클라우드, 카테고리 바 차트
 
-참조: `docs/WEEK1_TASKS.md` Task 5, `docs/decisions/004-data-source-pivot.md`
+참조: `docs/PROJECT.md`, `supabase/types.ts`
 
 ---
 

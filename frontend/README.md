@@ -1,5 +1,26 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 반응 탭 (Voice Tracker Dashboard)
+
+Aion 2 커뮤니티 여론 모니터링 대시보드.
+
+### 신규 라우트
+
+- `/reactions` — 반응 탭 메인 페이지
+
+### 신규 API (개발 서버 전용, `next dev`)
+
+> `output: 'export'` 정적 빌드에서는 동작하지 않음.
+> 프로덕션에서는 Supabase JS 클라이언트 직접 호출 방식으로 교체 예정.
+
+- `GET /api/voice/now` — 최근 1시간 통계
+- `GET /api/voice/trend?days=N` — 최근 N일 일별 통계
+- `GET /api/voice/issues?limit=N` — 주요 이슈 TOP N
+
+### 현재 상태
+
+Mock 데이터 사용 중. 실 데이터 연결은 `docs/NEXT_WEEKEND.md` 참조.
+
 ## Getting Started
 
 First, run the development server:

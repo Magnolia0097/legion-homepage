@@ -59,6 +59,15 @@ const tabs = [
       </svg>
     ),
   },
+  {
+    href: '/reactions',
+    label: '반응',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 22, height: 22 }}>
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+    ),
+  },
 ]
 
 function isActive(pathname: string, href: string) {

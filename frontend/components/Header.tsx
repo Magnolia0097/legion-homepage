@@ -12,6 +12,7 @@ const navLinks = [
   { href: '/gallery', label: '갤러리' },
   { href: '/members', label: '멤버' },
   { href: '/game', label: '게임' },
+  { href: '/reactions', label: '반응' },
 ]
 
 function isActive(pathname: string, href: string) {

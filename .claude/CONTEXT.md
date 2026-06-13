@@ -57,8 +57,8 @@
 
 ## 현재 진행 상태
 
-- **최신 커밋**: Merge branch 'claude/create-folder-structure-Cd1D0' into master (PR #4)
-- **현재 브랜치**: master (직접 커밋 방식)
+- **최신 커밋**: feat: Task 11~13 — 반응 탭 대시보드 (Mock 데이터)
+- **현재 브랜치**: claude/create-folder-structure-Cd1D0 (PR 경유 → master 예정)
 
 ### 완료된 Task
 - ✅ Task 1: 폴더 구조 생성 (pipeline/, supabase/migrations/, docs/)
@@ -86,9 +86,22 @@
   - run_pipeline.py 5단계(집계) 통합
   - 학습 문서: `docs/learning/09-aggregation.md`
 - ✅ 브랜치 정리: PR #4 → master 머지 완료 (merge commit)
+- ✅ Task 11: API Routes (`frontend/app/api/voice/{now,trend,issues}/route.ts`, force-static)
+  - Mock 데이터: `frontend/app/api/voice/_mock/*.ts`
+  - `next build` 통과 확인
+- ✅ Task 12: 대시보드 페이지 + 컴포넌트
+  - `frontend/app/reactions/page.tsx`
+  - `frontend/components/voice/` — NowStats, TrendChart, IssueCard, SentimentBadge
+  - recharts 추가 (PieChart, LineChart)
+  - Header + BottomNav에 "반응" 탭 추가
+- ✅ Task 13: 학습 문서 + 가이드
+  - `docs/learning/10-frontend-dashboard.md`
+  - `docs/NEXT_WEEKEND.md` — Supabase 연결 단계별 가이드
+  - `frontend/app/api/voice/README.md`
+  - `frontend/README.md` 업데이트
 
 ### 다음 Task
-- ⏳ **Task 11~13**: Next.js 대시보드 "반응" 탭 (frontend/)
+- ⏳ **다음 주말**: Supabase 실 데이터 연결 (`docs/NEXT_WEEKEND.md` 참조)
 
 ### 외부 서비스 상태
 - **Supabase**: 프로젝트 미생성 (주찬이 직접 생성 예정). SQL 실행 상태 **확인 필요**

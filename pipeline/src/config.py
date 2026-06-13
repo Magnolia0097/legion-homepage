@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # 인벤 크롤러
     inven_user_agent: str = "legion-voice-tracker/0.1"
     inven_request_interval: float = 3.0
-    inven_board_ids: str = "6388,6444,6447"
+    inven_board_ids: str = "6388,6438,6448,6449,6450,6451,6452,6453,6454"
 
     # Gemini API
     gemini_api_key: str

@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.aggregators.hourly import refresh_daily_stats, refresh_hourly_stats
 from src.collectors.inven import collect_inven_aion2, save_posts
+from src.config import get_settings
 from src.db import fetch_unclassified, mark_as_spam
 from src.processors.classifier import classify_post, update_classification
 from src.processors.filter import is_spam
@@ -39,15 +40,18 @@ _CLASSIFY_SLEEP = 4.0  # Gemini Flash 무료 15 RPM → 4초 간격 유지
 def main() -> None:
     logger.info("=== 파이프라인 시작 ===")
 
-    # ── 1. 수집 ──────────────────────────────────────────────────────────────
-    try:
-        collected = collect_inven_aion2(board_id=6388, max_pages=1)
-        saved = save_posts(collected)
-        logger.info("수집/저장: %d건 수집, %d건 신규 저장", len(collected), saved)
-    except Exception as exc:
-        logger.error("수집 단계 실패: %s", exc)
-        collected = []
-        saved = 0
+    # ── 1. 수집 (설정된 모든 게시판) ─────────────────────────────────────────
+    settings = get_settings()
+    collected: list[dict] = []
+    saved = 0
+    for board_id in settings.board_id_list:
+        try:
+            posts = collect_inven_aion2(board_id=board_id, max_pages=1)
+            saved += save_posts(posts)
+            collected.extend(posts)
+        except Exception as exc:
+            logger.error("board_id=%d 수집 실패: %s", board_id, exc)
+    logger.info("수집/저장: %d건 수집, %d건 신규 저장", len(collected), saved)
 
     # ── 2. 미분류 게시글 가져오기 ─────────────────────────────────────────────
     unclassified = fetch_unclassified(limit=50)

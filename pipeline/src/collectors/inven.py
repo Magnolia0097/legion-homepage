@@ -135,8 +135,12 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
     posts: list[dict] = []
     post_url_re = re.compile(rf"/board/aion2/{board_id}/(\d+)")
 
-    # ── 게시판 행 선택 (2026년 인벤 카드형 레이아웃: li.b{board_id}) ─────────
+    # ── 게시판 행 선택: 카드형(li.b{id}) → 테이블형(table.board-list tr) 순서로 시도
+    is_table_layout = False
     rows = soup.select(f"li.b{board_id}")
+    if not rows:
+        rows = soup.select("table.board-list tbody tr")
+        is_table_layout = bool(rows)
     if not rows:
         logger.warning(
             f"게시판 행을 찾지 못함 (board_id={board_id}). "
@@ -144,12 +148,19 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
         )
         return posts
 
+    logger.debug(f"레이아웃: {'테이블형' if is_table_layout else '카드형'} (board_id={board_id})")
+
     for row in rows:
-        # ── 공지사항 제외 (.cate 텍스트 기준) ──────────────────────────────
-        cate_tag = row.select_one(".cate")
-        cate_text = cate_tag.get_text(strip=True) if cate_tag else ""
-        if cate_text in ("공지", "이벤트공지", "긴급공지"):
-            continue
+        # ── 공지사항 제외 ────────────────────────────────────────────────────
+        if is_table_layout:
+            row_classes = row.get("class") or []
+            if any(c in row_classes for c in ("notice", "li-notice", "noti")):
+                continue
+        else:
+            cate_tag = row.select_one(".cate")
+            cate_text = cate_tag.get_text(strip=True) if cate_tag else ""
+            if cate_text in ("공지", "이벤트공지", "긴급공지"):
+                continue
 
         # ── 제목 링크 → URL + post_id ────────────────────────────────────────
         link = row.select_one(f"a[href*='/board/aion2/{board_id}/']")
@@ -161,15 +172,25 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
             continue
         post_id = m.group(1)
 
-        # ── 제목 (.tit div) ──────────────────────────────────────────────────
-        title_tag = row.select_one(".tit")
-        title = title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
+        # ── 제목: 카드형은 .tit, 테이블형은 링크 텍스트 직접 사용 ─────────────
+        if is_table_layout:
+            title = link.get_text(strip=True)
+        else:
+            title_tag = row.select_one(".tit")
+            title = title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
         if not title:
             continue
 
-        # ── 작성자·날짜: 목록 페이지에 미노출 → v1.1에서 상세 페이지 수집 예정
-        author = ""
-        posted_at = datetime.now(tz=KST)
+        # ── 작성자·날짜 ───────────────────────────────────────────────────────
+        if is_table_layout:
+            author_tag = row.select_one(".writer, .td-writer, .nickname")
+            author = author_tag.get_text(strip=True) if author_tag else ""
+            date_tag = row.select_one(".date, .td-date, time")
+            raw_date = date_tag.get_text(strip=True) if date_tag else ""
+            posted_at = _parse_posted_at(raw_date) if raw_date else datetime.now(tz=KST)
+        else:
+            author = ""
+            posted_at = datetime.now(tz=KST)
 
         posts.append({
             "source": "inven_aion2",

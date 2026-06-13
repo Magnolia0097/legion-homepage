@@ -30,6 +30,18 @@ logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 INVEN_BASE = "https://www.inven.co.kr"
 
+BOARD_NAMES: dict[int, str] = {
+    6388: "자유",
+    6438: "수호성",
+    6448: "검성",
+    6449: "살성",
+    6450: "궁성",
+    6451: "호법성",
+    6452: "치유성",
+    6453: "마도성",
+    6454: "정령성",
+}
+
 # 모듈 레벨 Session 싱글톤 — 커넥션 재사용으로 오버헤드 감소
 _session: requests.Session | None = None
 
@@ -166,7 +178,8 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
             "title": title,
             "author": author,
             "posted_at": posted_at.isoformat(),
-            "body": None,  # v1.1에서 상세 페이지 수집 후 채울 예정
+            "board_name": BOARD_NAMES.get(board_id),
+            "body": None,
         })
 
     logger.info(f"파싱 완료: {len(posts)}건 (board_id={board_id})")

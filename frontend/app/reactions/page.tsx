@@ -3,19 +3,23 @@
 import { useEffect, useState } from 'react'
 import NowStats from '@/components/voice/NowStats'
 import TrendChart from '@/components/voice/TrendChart'
-import IssueCard from '@/components/voice/IssueCard'
+import DailyIssueCard from '@/components/voice/DailyIssueCard'
+import ClassBoard from '@/components/voice/ClassBoard'
 import type { NowData } from '@/app/api/voice/_mock/now'
 import type { DailyData } from '@/app/api/voice/_mock/trend'
-import type { Issue } from '@/app/api/voice/_mock/issues'
 import { getMockNow } from '@/app/api/voice/_mock/now'
 import { getMockTrend } from '@/app/api/voice/_mock/trend'
-import { getMockIssues } from '@/app/api/voice/_mock/issues'
 import { supabase } from '@/lib/supabase'
+
+interface DailyIssue {
+  summary: string
+  count: number
+}
 
 export default function ReactionsPage() {
   const [nowData, setNowData] = useState<NowData | null>(null)
   const [trendData, setTrendData] = useState<DailyData[]>([])
-  const [issuesData, setIssuesData] = useState<Issue[]>([])
+  const [dailyIssues, setDailyIssues] = useState<DailyIssue[]>([])
   const [isLive, setIsLive] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -23,7 +27,6 @@ export default function ReactionsPage() {
     if (!supabase) {
       setNowData(getMockNow())
       setTrendData(getMockTrend(7))
-      setIssuesData(getMockIssues(5))
       setLoading(false)
       return
     }
@@ -45,23 +48,25 @@ export default function ReactionsPage() {
         if (!e1 && nowRow) {
           setNowData(nowRow as NowData)
           setIsLive(true)
+          // 오늘(가장 최근) 일별 통계에서 top_issues 추출
+          const todayRow = trendRows?.[0]
+          const issues = (todayRow?.top_issues ?? []) as DailyIssue[]
+          setDailyIssues(issues.slice(0, 5))
         } else {
           setNowData(getMockNow())
         }
 
-        if (!e2 && trendRows && trendRows.length > 0) {
+        if (!e2 && trendRows?.length) {
           setTrendData([...trendRows].reverse() as DailyData[])
         } else {
           setTrendData(getMockTrend(7))
         }
 
-        setIssuesData(getMockIssues(5))
         setLoading(false)
       })
       .catch(() => {
         setNowData(getMockNow())
         setTrendData(getMockTrend(7))
-        setIssuesData(getMockIssues(5))
         setLoading(false)
       })
   }, [])
@@ -76,7 +81,7 @@ export default function ReactionsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24 space-y-8">
-      {/* 페이지 헤더 */}
+      {/* 헤더 */}
       <div>
         <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--gold-light)' }}>반응</h1>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -96,29 +101,46 @@ export default function ReactionsPage() {
               Mock 데이터
             </div>
           )}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs"
-            style={{ background: 'rgba(122,96,48,0.15)', border: '1px solid rgba(122,96,48,0.3)', color: 'var(--text-muted)' }}>
-            이슈 집계 준비 중
-          </div>
         </div>
       </div>
 
-      {/* 섹션 1: 지금 상황 */}
+      {/* 섹션 1: 지금 상황 (자유게시판 기준) */}
       {nowData && <NowStats data={nowData} />}
 
       {/* 섹션 2: 추이 */}
       {trendData.length > 0 && <TrendChart data={trendData} />}
 
-      {/* 섹션 3: 주요 이슈 */}
+      {/* 섹션 3: 직업별 반응 */}
+      <ClassBoard />
+
+      {/* 섹션 4: 오늘의 주요 이슈 TOP 5 */}
       <div>
-        <h2 className="text-base font-bold mb-3" style={{ color: 'var(--gold-light)' }}>
-          주요 이슈 TOP 5
+        <h2 className="text-base font-bold mb-1" style={{ color: 'var(--gold-light)' }}>
+          오늘의 주요 이슈 TOP 5
         </h2>
-        <div className="space-y-3">
-          {issuesData.map((issue, i) => (
-            <IssueCard key={i} issue={issue} rank={i + 1} />
-          ))}
-        </div>
+        <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+          오늘 하루 기준 가장 많이 언급된 이슈
+        </p>
+        {dailyIssues.length > 0 ? (
+          <div className="space-y-3">
+            {dailyIssues.map((issue, i) => (
+              <DailyIssueCard key={i} issue={issue} rank={i + 1} />
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-dark)',
+            borderRadius: '12px',
+            padding: '24px',
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              오늘 집계 데이터가 아직 없습니다.<br />
+              파이프라인 실행 후 표시됩니다.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

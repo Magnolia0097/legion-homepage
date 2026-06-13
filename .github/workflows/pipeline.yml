@@ -24,7 +24,7 @@ jobs:
           cat > pipeline/.env << EOF
           INVEN_USER_AGENT=legion-voice-tracker/0.1 (aion2-community-sentiment; contact: magnolia0097@gmail.com)
           INVEN_REQUEST_INTERVAL=3.0
-          INVEN_BOARD_IDS=6388,6444,6447
+          INVEN_BOARD_IDS=6388,6438,6448,6449,6450,6451,6452,6453,6454
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL=gemini-2.5-flash
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}

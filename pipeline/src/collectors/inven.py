@@ -123,11 +123,8 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
     posts: list[dict] = []
     post_url_re = re.compile(rf"/board/aion2/{board_id}/(\d+)")
 
-    # ── 게시판 행 선택 (두 가지 구조 대응) ──────────────────────────────────
-    # 인벤은 <ul class="list-body"> 또는 <table> 구조 중 하나  # 확인 후 조정 필요
-    rows = soup.select("ul.list-body > li.li-row")          # 확인 후 조정 필요
-    if not rows:
-        rows = soup.select("table.board-list tbody tr")     # 확인 후 조정 필요
+    # ── 게시판 행 선택 (2026년 인벤 카드형 레이아웃: li.b{board_id}) ─────────
+    rows = soup.select(f"li.b{board_id}")
     if not rows:
         logger.warning(
             f"게시판 행을 찾지 못함 (board_id={board_id}). "
@@ -136,13 +133,14 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
         return posts
 
     for row in rows:
-        # ── 공지사항 제외 ────────────────────────────────────────────────────
-        classes = row.get("class") or []                    # 확인 후 조정 필요
-        if any(c in classes for c in ("notice", "li-notice", "noti")):
+        # ── 공지사항 제외 (.cate 텍스트 기준) ──────────────────────────────
+        cate_tag = row.select_one(".cate")
+        cate_text = cate_tag.get_text(strip=True) if cate_tag else ""
+        if cate_text in ("공지", "이벤트공지", "긴급공지"):
             continue
 
         # ── 제목 링크 → URL + post_id ────────────────────────────────────────
-        link = row.select_one("a[href*='/board/aion2/']")   # 확인 후 조정 필요
+        link = row.select_one(f"a[href*='/board/aion2/{board_id}/']")
         if not link:
             continue
         href = link.get("href", "")
@@ -151,20 +149,15 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
             continue
         post_id = m.group(1)
 
-        title = link.get_text(strip=True)
+        # ── 제목 (.tit div) ──────────────────────────────────────────────────
+        title_tag = row.select_one(".tit")
+        title = title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
         if not title:
             continue
 
-        # ── 작성자 ───────────────────────────────────────────────────────────
-        author_tag = row.select_one(                        # 확인 후 조정 필요
-            ".nickname, .writer, .td-writer, .name"
-        )
-        author = author_tag.get_text(strip=True) if author_tag else ""
-
-        # ── 작성일시 ─────────────────────────────────────────────────────────
-        date_tag = row.select_one(".date, .td-date, time")  # 확인 후 조정 필요
-        raw_date = date_tag.get_text(strip=True) if date_tag else ""
-        posted_at = _parse_posted_at(raw_date) if raw_date else datetime.now(tz=KST)
+        # ── 작성자·날짜: 목록 페이지에 미노출 → v1.1에서 상세 페이지 수집 예정
+        author = ""
+        posted_at = datetime.now(tz=KST)
 
         posts.append({
             "source": "inven_aion2",

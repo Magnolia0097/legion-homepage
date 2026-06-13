@@ -55,9 +55,12 @@ def main() -> None:
     settings = get_settings()
     collected: list[dict] = []
     saved = 0
+    # 자유게시판(6388)은 활동량이 많아 2페이지, 직업게시판은 1페이지
+    _FREE_BOARD = 6388
     for board_id in settings.board_id_list:
+        max_pages = 2 if board_id == _FREE_BOARD else 1
         try:
-            posts = collect_inven_aion2(board_id=board_id, max_pages=1)
+            posts = collect_inven_aion2(board_id=board_id, max_pages=max_pages)
             posts_today = [p for p in posts if _is_today_kst(p["posted_at"])]
             skipped = len(posts) - len(posts_today)
             if skipped:

@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # scripts/ 디렉토리에서 실행할 때 src 패키지를 찾기 위해 파이프라인 루트를 sys.path에 추가
@@ -35,6 +36,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _CLASSIFY_SLEEP = 4.0  # Gemini Flash 무료 15 RPM → 4초 간격 유지
+_KST = timezone(timedelta(hours=9))
+
+
+def _is_today_kst(iso_str: str) -> bool:
+    """게시글 posted_at이 오늘(KST) 날짜인지 확인."""
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        return dt.astimezone(_KST).date() == datetime.now(tz=_KST).date()
+    except (ValueError, TypeError):
+        return True
 
 
 def main() -> None:
@@ -47,8 +58,12 @@ def main() -> None:
     for board_id in settings.board_id_list:
         try:
             posts = collect_inven_aion2(board_id=board_id, max_pages=1)
-            saved += save_posts(posts)
-            collected.extend(posts)
+            posts_today = [p for p in posts if _is_today_kst(p["posted_at"])]
+            skipped = len(posts) - len(posts_today)
+            if skipped:
+                logger.info("오늘 날짜 필터: %d건 제외 (board_id=%d)", skipped, board_id)
+            saved += save_posts(posts_today)
+            collected.extend(posts_today)
         except Exception as exc:
             logger.error("board_id=%d 수집 실패: %s", board_id, exc)
     logger.info("수집/저장: %d건 수집, %d건 신규 저장", len(collected), saved)

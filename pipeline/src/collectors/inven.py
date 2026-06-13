@@ -123,9 +123,8 @@ def _parse_posted_at(raw: str) -> datetime:
 def parse_post_list(html: str, board_id: int) -> list[dict]:
     """목록 페이지 HTML에서 게시글 메타데이터 추출.
 
-    ⚠️  셀렉터는 일반적인 인벤 게시판 패턴으로 추정 작성.
-        실제 HTML 확인 후 조정 필요.
-        test_inven.py 실행 시 0건이 나오면 이 함수의 셀렉터를 수정할 것.
+    CSS 클래스 추측 대신 URL 패턴으로 링크를 탐색하고 부모 행(li/tr)을 가져오는
+    방식이므로 카드형/테이블형 레이아웃 변경에 영향받지 않음.
 
     Returns:
         list of dict with keys:
@@ -134,64 +133,44 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
     soup = BeautifulSoup(html, "lxml")
     posts: list[dict] = []
     post_url_re = re.compile(rf"/board/aion2/{board_id}/(\d+)")
+    seen_ids: set[str] = set()
 
-    # ── 게시판 행 선택: 카드형(li.b{id}) → 테이블형(table.board-list tr) 순서로 시도
-    is_table_layout = False
-    rows = soup.select(f"li.b{board_id}")
-    if not rows:
-        rows = soup.select("table.board-list tbody tr")
-        is_table_layout = bool(rows)
-    if not rows:
-        logger.warning(
-            f"게시판 행을 찾지 못함 (board_id={board_id}). "
-            "HTML 구조 변경 가능성 — parse_post_list 셀렉터 확인 필요."
-        )
-        return posts
-
-    logger.debug(f"레이아웃: {'테이블형' if is_table_layout else '카드형'} (board_id={board_id})")
-
-    for row in rows:
-        # ── 공지사항 제외 ────────────────────────────────────────────────────
-        if is_table_layout:
-            row_classes = row.get("class") or []
-            if any(c in row_classes for c in ("notice", "li-notice", "noti")):
-                continue
-        else:
-            cate_tag = row.select_one(".cate")
-            cate_text = cate_tag.get_text(strip=True) if cate_tag else ""
-            if cate_text in ("공지", "이벤트공지", "긴급공지"):
-                continue
-
-        # ── 제목 링크 → URL + post_id ────────────────────────────────────────
-        link = row.select_one(f"a[href*='/board/aion2/{board_id}/']")
-        if not link:
-            continue
+    for link in soup.find_all("a", href=post_url_re):
         href = link.get("href", "")
         m = post_url_re.search(href)
         if not m:
             continue
         post_id = m.group(1)
+        if post_id in seen_ids:
+            continue
 
-        # ── 제목: 카드형은 .tit, 테이블형은 링크 텍스트 직접 사용 ─────────────
-        if is_table_layout:
-            title = link.get_text(strip=True)
-        else:
-            title_tag = row.select_one(".tit")
-            title = title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
+        # 부모 행 탐색 (li=카드형, tr=테이블형)
+        row = link.find_parent(["li", "tr"])
+        if not row:
+            continue
+
+        # 공지 제외: class 기반 + .cate 텍스트 기반 모두 검사
+        row_classes = row.get("class") or []
+        if any(c in row_classes for c in ("notice", "li-notice", "noti")):
+            continue
+        cate_tag = row.select_one(".cate")
+        if cate_tag and cate_tag.get_text(strip=True) in ("공지", "이벤트공지", "긴급공지"):
+            continue
+
+        # 제목: .tit 우선, 없으면 링크 텍스트
+        title_tag = row.select_one(".tit")
+        title = title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
         if not title:
             continue
 
-        # ── 작성자·날짜 ───────────────────────────────────────────────────────
-        if is_table_layout:
-            author_tag = row.select_one(".writer, .td-writer, .nickname")
-            author = author_tag.get_text(strip=True) if author_tag else ""
-            date_tag = row.select_one(".date, .td-date, time")
-            raw_date = date_tag.get_text(strip=True) if date_tag else ""
-            posted_at = _parse_posted_at(raw_date) if raw_date else datetime.now(tz=KST)
-        else:
-            author = ""
-            posted_at = datetime.now(tz=KST)
+        # 작성자·날짜
+        author_tag = row.select_one(".writer, .td-writer, .nickname, .nick")
+        author = author_tag.get_text(strip=True) if author_tag else ""
+        date_tag = row.select_one(".date, .td-date, time, .time")
+        raw_date = date_tag.get_text(strip=True) if date_tag else ""
+        posted_at = _parse_posted_at(raw_date) if raw_date else datetime.now(tz=KST)
 
+        seen_ids.add(post_id)
         posts.append({
             "source": "inven_aion2",
             "external_id": f"{board_id}_{post_id}",

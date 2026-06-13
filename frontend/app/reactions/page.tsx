@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import NowStats from '@/components/voice/NowStats'
 import TrendChart from '@/components/voice/TrendChart'
 import DailyIssueCard from '@/components/voice/DailyIssueCard'
+import type { PostItem } from '@/components/voice/DailyIssueCard'
 import ClassBoard from '@/components/voice/ClassBoard'
 import type { NowData } from '@/app/api/voice/_mock/now'
 import type { DailyData } from '@/app/api/voice/_mock/trend'
@@ -20,6 +21,7 @@ export default function ReactionsPage() {
   const [nowData, setNowData] = useState<NowData | null>(null)
   const [trendData, setTrendData] = useState<DailyData[]>([])
   const [dailyIssues, setDailyIssues] = useState<DailyIssue[]>([])
+  const [todayPosts, setTodayPosts] = useState<PostItem[]>([])
   const [isLive, setIsLive] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -30,6 +32,13 @@ export default function ReactionsPage() {
       setLoading(false)
       return
     }
+
+    // KST 기준 오늘 자정 (UTC)
+    const now = new Date()
+    const kstOffset = 9 * 60 * 60 * 1000
+    const kstNow = new Date(now.getTime() + kstOffset)
+    const todayKSTMidnight = new Date(Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()))
+    const todayStartISO = new Date(todayKSTMidnight.getTime() - kstOffset).toISOString()
 
     Promise.all([
       supabase
@@ -43,12 +52,18 @@ export default function ReactionsPage() {
         .select('*')
         .order('day', { ascending: false })
         .limit(7),
+      supabase
+        .from('voice_raw_posts')
+        .select('id, title, url, sentiment, issue_summary')
+        .not('classified_at', 'is', null)
+        .gte('posted_at', todayStartISO)
+        .order('posted_at', { ascending: false })
+        .limit(200),
     ])
-      .then(([{ data: nowRow, error: e1 }, { data: trendRows, error: e2 }]) => {
+      .then(([{ data: nowRow, error: e1 }, { data: trendRows, error: e2 }, { data: rawPosts }]) => {
         if (!e1 && nowRow) {
           setNowData(nowRow as NowData)
           setIsLive(true)
-          // 오늘(가장 최근) 일별 통계에서 top_issues 추출
           const todayRow = trendRows?.[0]
           const issues = (todayRow?.top_issues ?? []) as DailyIssue[]
           setDailyIssues(issues.slice(0, 5))
@@ -62,6 +77,7 @@ export default function ReactionsPage() {
           setTrendData(getMockTrend(7))
         }
 
+        setTodayPosts((rawPosts ?? []) as PostItem[])
         setLoading(false)
       })
       .catch(() => {
@@ -104,27 +120,22 @@ export default function ReactionsPage() {
         </div>
       </div>
 
-      {/* 섹션 1: 지금 상황 (자유게시판 기준) */}
       {nowData && <NowStats data={nowData} />}
-
-      {/* 섹션 2: 추이 */}
       {trendData.length > 0 && <TrendChart data={trendData} />}
-
-      {/* 섹션 3: 직업별 반응 */}
       <ClassBoard />
 
-      {/* 섹션 4: 오늘의 주요 이슈 TOP 5 */}
+      {/* 오늘의 주요 이슈 TOP 5 */}
       <div>
         <h2 className="text-base font-bold mb-1" style={{ color: 'var(--gold-light)' }}>
           오늘의 주요 이슈 TOP 5
         </h2>
         <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-          오늘 하루 기준 가장 많이 언급된 이슈
+          오늘 하루 기준 가장 많이 언급된 이슈 · 원문 버튼으로 출처 글 확인
         </p>
         {dailyIssues.length > 0 ? (
           <div className="space-y-3">
             {dailyIssues.map((issue, i) => (
-              <DailyIssueCard key={i} issue={issue} rank={i + 1} />
+              <DailyIssueCard key={i} issue={issue} rank={i + 1} posts={todayPosts} />
             ))}
           </div>
         ) : (

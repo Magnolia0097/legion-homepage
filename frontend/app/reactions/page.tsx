@@ -8,8 +8,6 @@ import type { PostItem } from '@/components/voice/DailyIssueCard'
 import ClassBoard from '@/components/voice/ClassBoard'
 import type { NowData } from '@/app/api/voice/_mock/now'
 import type { DailyData } from '@/app/api/voice/_mock/trend'
-import { getMockNow } from '@/app/api/voice/_mock/now'
-import { getMockTrend } from '@/app/api/voice/_mock/trend'
 import { supabase } from '@/lib/supabase'
 
 interface DailyIssue {
@@ -22,18 +20,15 @@ export default function ReactionsPage() {
   const [trendData, setTrendData] = useState<DailyData[]>([])
   const [dailyIssues, setDailyIssues] = useState<DailyIssue[]>([])
   const [todayPosts, setTodayPosts] = useState<PostItem[]>([])
-  const [isLive, setIsLive] = useState(false)
+  const [hasData, setHasData] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!supabase) {
-      setNowData(getMockNow())
-      setTrendData(getMockTrend(7))
       setLoading(false)
       return
     }
 
-    // KST 기준 오늘 자정 (UTC)
     const now = new Date()
     const kstOffset = 9 * 60 * 60 * 1000
     const kstNow = new Date(now.getTime() + kstOffset)
@@ -63,26 +58,20 @@ export default function ReactionsPage() {
       .then(([{ data: nowRow, error: e1 }, { data: trendRows, error: e2 }, { data: rawPosts }]) => {
         if (!e1 && nowRow) {
           setNowData(nowRow as NowData)
-          setIsLive(true)
+          setHasData(true)
           const todayRow = trendRows?.[0]
           const issues = (todayRow?.top_issues ?? []) as DailyIssue[]
           setDailyIssues(issues.slice(0, 5))
-        } else {
-          setNowData(getMockNow())
         }
 
         if (!e2 && trendRows?.length) {
           setTrendData([...trendRows].reverse() as DailyData[])
-        } else {
-          setTrendData(getMockTrend(7))
         }
 
         setTodayPosts((rawPosts ?? []) as PostItem[])
         setLoading(false)
       })
       .catch(() => {
-        setNowData(getMockNow())
-        setTrendData(getMockTrend(7))
         setLoading(false)
       })
   }, [])
@@ -95,28 +84,46 @@ export default function ReactionsPage() {
     )
   }
 
+  if (!hasData) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--gold-light)' }}>반응</h1>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>인벤 아이온2 게시판 여론 모니터링</p>
+        </div>
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-dark)',
+          borderRadius: '16px',
+          padding: '48px 24px',
+          textAlign: 'center',
+        }}>
+          <p style={{ fontSize: '32px', marginBottom: '16px' }}>📭</p>
+          <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
+            수집된 데이터가 없습니다
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            데이터베이스가 초기화 되었거나 아직 수집이 시작되지 않았습니다.<br />
+            파이프라인 실행 후 자동으로 표시됩니다.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24 space-y-8">
-      {/* 헤더 */}
       <div>
         <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--gold-light)' }}>반응</h1>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           인벤 아이온2 게시판 여론 모니터링
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {isLive ? (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs"
-              style={{ background: 'rgba(129,199,132,0.1)', border: '1px solid rgba(129,199,132,0.3)', color: '#81c784' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#81c784', display: 'inline-block' }} />
-              실시간 데이터
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs"
-              style={{ background: 'rgba(224,80,80,0.1)', border: '1px solid rgba(224,80,80,0.2)', color: '#e07070' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e05050', display: 'inline-block' }} />
-              Mock 데이터
-            </div>
-          )}
+        <div className="mt-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs"
+            style={{ background: 'rgba(129,199,132,0.1)', border: '1px solid rgba(129,199,132,0.3)', color: '#81c784' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#81c784', display: 'inline-block' }} />
+            실시간 데이터
+          </div>
         </div>
       </div>
 
@@ -124,7 +131,6 @@ export default function ReactionsPage() {
       {trendData.length > 0 && <TrendChart data={trendData} />}
       <ClassBoard />
 
-      {/* 오늘의 주요 이슈 TOP 5 */}
       <div>
         <h2 className="text-base font-bold mb-1" style={{ color: 'var(--gold-light)' }}>
           오늘의 주요 이슈 TOP 5

@@ -15,8 +15,14 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-2.5-flash-lite"
 
-    # 분류기 모드: "local"=무료·무제한 키워드 분류 / "gemini"=LLM(무료 한도 제약)
-    classifier_mode: str = "local"
+    # 분류기 모드:
+    #   "transformer" = 로컬 한국어 감성 BERT (무료·무제한·맥락이해, 추천)
+    #   "local"       = 키워드 점수 (무료·무제한, 가볍지만 맥락 약함)
+    #   "gemini"      = LLM (무료 한도 제약)
+    classifier_mode: str = "transformer"
+
+    # transformer 모드에서 쓸 한국어 감성 모델 (HuggingFace Hub)
+    transformer_model: str = "sangrimlee/bert-base-multilingual-cased-nsmc"
 
     # Supabase
     supabase_url: str

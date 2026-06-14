@@ -28,6 +28,7 @@ from src.db import fetch_unclassified, mark_as_spam
 from src.processors.classifier import QuotaExhausted, classify_post, update_classification
 from src.processors.filter import is_spam
 from src.processors.local_sentiment import classify_local
+from src.processors.transformer_sentiment import classify_transformer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,9 +74,9 @@ def main() -> None:
     logger.info("수집/저장: %d건 수집, %d건 신규 저장", len(collected), saved)
 
     # ── 2. 미분류 게시글 가져오기 ─────────────────────────────────────────────
-    # local 모드는 무료·무제한이라 한 번에 많이 처리, gemini 모드는 무료 한도 고려해 소량
+    # transformer/local 모드는 무료·무제한이라 한 번에 많이, gemini 모드는 무료 한도 고려해 소량
     mode = settings.classifier_mode
-    fetch_limit = 1000 if mode == "local" else 80
+    fetch_limit = 80 if mode == "gemini" else 1000
     unclassified = fetch_unclassified(limit=fetch_limit)
     logger.info("미분류 게시글: %d건 (분류 모드: %s)", len(unclassified), mode)
 
@@ -93,7 +94,10 @@ def main() -> None:
             continue
 
         # ── 4. 분류 (Tier-2) ──────────────────────────────────────────────────
-        if mode == "local":
+        if mode == "transformer":
+            # 로컬 감성 트랜스포머 — API 호출 없음, 한도·지연 없음 (맥락 이해)
+            result = classify_transformer(post)
+        elif mode == "local":
             # 로컬 키워드 분류 — API 호출 없음, 한도·지연 없음
             result = classify_local(post)
         else:
@@ -109,7 +113,7 @@ def main() -> None:
 
         update_classification(post_id, result)
         classified_count += 1
-        if mode != "local":
+        if mode == "gemini":
             time.sleep(_CLASSIFY_SLEEP)
 
     logger.info(

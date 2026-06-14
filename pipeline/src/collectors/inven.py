@@ -144,9 +144,37 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
         if post_id in seen_ids:
             continue
 
-        # 부모 행 탐색 (li=카드형, tr=테이블형)
-        row = link.find_parent(["li", "tr"])
+        # 부모 행 탐색: li·tr(전통 목록), article·section(현대 카드형), div 폴백
+        row = link.find_parent(["li", "tr", "article", "section"])
         if not row:
+            # div 기반 레이아웃: 날짜·작성자 정보를 포함한 가장 가까운 div 탐색
+            candidate = link.parent
+            for _ in range(5):  # 최대 5레벨 위까지만 탐색
+                if candidate is None or candidate.name in ("body", "html"):
+                    break
+                if candidate.name == "div" and candidate.select_one(
+                    ".date, .td-date, time, .time, .writer, .td-writer, .nickname, .nick, .tit"
+                ):
+                    row = candidate
+                    break
+                candidate = candidate.parent
+
+        if not row:
+            # 최후 폴백: 링크 텍스트만으로 게시글 생성 (날짜·작성자 없음)
+            title = link.get_text(strip=True)
+            if not title:
+                continue
+            seen_ids.add(post_id)
+            posts.append({
+                "source": "inven_aion2",
+                "external_id": f"{board_id}_{post_id}",
+                "url": f"{INVEN_BASE}/board/aion2/{board_id}/{post_id}",
+                "title": title,
+                "author": "",
+                "posted_at": datetime.now(tz=KST).isoformat(),
+                "board_name": BOARD_NAMES.get(board_id),
+                "body": None,
+            })
             continue
 
         # 공지 제외: class 기반 + .cate 텍스트 기반 모두 검사

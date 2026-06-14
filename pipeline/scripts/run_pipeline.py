@@ -25,7 +25,7 @@ from src.aggregators.hourly import refresh_daily_stats, refresh_hourly_stats
 from src.collectors.inven import collect_inven_aion2, save_posts
 from src.config import get_settings
 from src.db import fetch_unclassified, mark_as_spam
-from src.processors.classifier import classify_post, update_classification
+from src.processors.classifier import QuotaExhausted, classify_post, update_classification
 from src.processors.filter import is_spam
 
 logging.basicConfig(
@@ -35,7 +35,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_CLASSIFY_SLEEP = 4.0  # Gemini Flash 무료 15 RPM → 4초 간격 유지
+_CLASSIFY_SLEEP = 12.0  # gemini-2.5-flash 무료 5 RPM → 12초 간격 유지
 _KST = timezone(timedelta(hours=9))
 
 
@@ -89,7 +89,11 @@ def main() -> None:
             continue
 
         # ── 4. 분류 (Tier-2 Gemini) ───────────────────────────────────────────
-        result = classify_post(post)
+        try:
+            result = classify_post(post)
+        except QuotaExhausted:
+            logger.warning("Gemini 쿼터 소진 — 이번 배치 분류 중단 (분류 성공 %d건 후 종료)", classified_count)
+            break
         if result is None:
             failed_count += 1
             continue

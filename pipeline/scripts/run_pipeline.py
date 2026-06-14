@@ -27,6 +27,7 @@ from src.config import get_settings
 from src.db import fetch_unclassified, mark_as_spam
 from src.processors.classifier import QuotaExhausted, classify_post, update_classification
 from src.processors.filter import is_spam
+from src.processors.local_sentiment import classify_local
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,8 +73,11 @@ def main() -> None:
     logger.info("수집/저장: %d건 수집, %d건 신규 저장", len(collected), saved)
 
     # ── 2. 미분류 게시글 가져오기 ─────────────────────────────────────────────
-    unclassified = fetch_unclassified(limit=80)
-    logger.info("미분류 게시글: %d건", len(unclassified))
+    # local 모드는 무료·무제한이라 한 번에 많이 처리, gemini 모드는 무료 한도 고려해 소량
+    mode = settings.classifier_mode
+    fetch_limit = 1000 if mode == "local" else 80
+    unclassified = fetch_unclassified(limit=fetch_limit)
+    logger.info("미분류 게시글: %d건 (분류 모드: %s)", len(unclassified), mode)
 
     spam_count = 0
     classified_count = 0
@@ -88,19 +92,25 @@ def main() -> None:
             spam_count += 1
             continue
 
-        # ── 4. 분류 (Tier-2 Gemini) ───────────────────────────────────────────
-        try:
-            result = classify_post(post)
-        except QuotaExhausted:
-            logger.warning("Gemini 쿼터 소진 — 이번 배치 분류 중단 (분류 성공 %d건 후 종료)", classified_count)
-            break
+        # ── 4. 분류 (Tier-2) ──────────────────────────────────────────────────
+        if mode == "local":
+            # 로컬 키워드 분류 — API 호출 없음, 한도·지연 없음
+            result = classify_local(post)
+        else:
+            try:
+                result = classify_post(post)
+            except QuotaExhausted:
+                logger.warning("Gemini 쿼터 소진 — 이번 배치 분류 중단 (분류 성공 %d건 후 종료)", classified_count)
+                break
+
         if result is None:
             failed_count += 1
             continue
 
         update_classification(post_id, result)
         classified_count += 1
-        time.sleep(_CLASSIFY_SLEEP)
+        if mode != "local":
+            time.sleep(_CLASSIFY_SLEEP)
 
     logger.info(
         "처리 완료 — 스팸: %d건, 분류 성공: %d건, 분류 실패: %d건",

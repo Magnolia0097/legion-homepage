@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-2.5-flash-lite"
 
+    # 분류기 모드: "local"=무료·무제한 키워드 분류 / "gemini"=LLM(무료 한도 제약)
+    classifier_mode: str = "local"
+
     # Supabase
     supabase_url: str
     supabase_anon_key: str

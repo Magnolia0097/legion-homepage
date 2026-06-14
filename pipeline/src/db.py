@@ -27,14 +27,18 @@ def get_supabase(use_service_role: bool = False) -> Client:
 
 
 def fetch_unclassified(limit: int = 50) -> list[dict]:
-    """classified_at IS NULL인 게시글을 오래된 순으로 반환."""
+    """classified_at IS NULL인 게시글을 최신 순으로 반환.
+
+    최신 글(오늘 작성분)을 먼저 분류해 당일 대시보드가 빨리 채워지도록 함.
+    누적 백로그가 있어도 오늘 글이 뒤로 밀리지 않는다.
+    """
     db = get_supabase(use_service_role=True)
     try:
         rows = (
             db.table("voice_raw_posts")
             .select("id, title, body")
             .is_("classified_at", "null")
-            .order("posted_at", desc=False)
+            .order("posted_at", desc=True)
             .limit(limit)
             .execute()
         ).data

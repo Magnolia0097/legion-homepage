@@ -94,3 +94,47 @@ export interface Comment {
   content: string
   created_at: string
 }
+
+// ── Voice Tracker (반응 페이지) ──────────────────────────────────────────────
+// 프로덕션은 Supabase(voice_* 테이블)에서 직접 조회. dev 전용 _mock/ 와 분리된 단일 출처.
+
+export interface Keyword {
+  keyword: string
+  count: number
+}
+
+export interface NowData {
+  hour: string
+  total_count: number
+  positive_count: number
+  negative_count: number
+  neutral_count: number
+  categories: Record<string, number>
+  top_keywords: Keyword[]
+  updated_at: string
+}
+
+export interface DailyIssue {
+  summary: string
+  count: number
+}
+
+export interface DailyData {
+  day: string
+  total_count: number
+  positive_count: number
+  negative_count: number
+  neutral_count: number
+  categories: Record<string, number>
+  top_keywords: Keyword[]
+  top_issues?: DailyIssue[]
+  updated_at: string
+}
+
+export interface VoicePost {
+  id: number
+  title: string
+  url: string
+  sentiment: string
+  issue_summary: string | null
+}

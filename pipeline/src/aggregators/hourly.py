@@ -15,6 +15,9 @@ from ..db import get_supabase
 
 logger = logging.getLogger(__name__)
 
+# 일별 집계는 KST(한국 시간) 날짜 경계 기준 — 대시보드의 '오늘'과 일치시키기 위함.
+KST = timezone(timedelta(hours=9))
+
 # Supabase RPC 대신 Python에서 집계 후 UPSERT
 # (RPC 함수 없이도 동작하도록 클라이언트 사이드 집계)
 
@@ -139,7 +142,7 @@ def refresh_daily_stats(days_back: int = 7) -> int:
             continue
         try:
             dt = datetime.fromisoformat(posted_at.replace("Z", "+00:00"))
-            day_key = dt.date().isoformat()
+            day_key = dt.astimezone(KST).date().isoformat()  # KST 날짜로 그룹핑
         except ValueError:
             continue
         buckets.setdefault(day_key, []).append(row)

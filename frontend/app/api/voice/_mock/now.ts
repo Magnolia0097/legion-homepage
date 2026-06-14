@@ -1,21 +1,8 @@
 // TODO(다음주말): Supabase 클라이언트로 교체.
 // 교체 가이드: frontend/app/api/voice/README.md 참조
+// 타입 단일 출처: frontend/types/index.ts (이 파일은 dev 전용 mock 데이터만 담당)
 
-export interface Keyword {
-  keyword: string
-  count: number
-}
-
-export interface NowData {
-  hour: string
-  total_count: number
-  positive_count: number
-  negative_count: number
-  neutral_count: number
-  categories: Record<string, number>
-  top_keywords: Keyword[]
-  updated_at: string
-}
+import type { NowData } from '@/types'
 
 export function getMockNow(): NowData {
   const now = new Date().toISOString()

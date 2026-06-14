@@ -1,6 +1,6 @@
 // Auto-generated types for Supabase schema (voice tracker)
-// Source  : supabase/migrations/001_voice_tracker.sql
-// Updated : 2026-04-21
+// Source  : supabase/migrations/001_voice_tracker.sql, 002_add_board_name.sql
+// Updated : 2026-06-14
 //
 // 이 파일은 Supabase CLI 자동 생성 형식을 수동으로 작성한 것입니다.
 // Supabase CLI 사용 가능해지면 아래 명령으로 재생성하세요:
@@ -33,6 +33,7 @@ export type Database = {
           issue_summary: string | null
           keywords: Json | null
           classified_at: string | null
+          board_name: string | null
         }
         Insert: {
           id?: number
@@ -49,6 +50,7 @@ export type Database = {
           issue_summary?: string | null
           keywords?: Json | null
           classified_at?: string | null
+          board_name?: string | null
         }
         Update: {
           id?: number
@@ -65,6 +67,7 @@ export type Database = {
           issue_summary?: string | null
           keywords?: Json | null
           classified_at?: string | null
+          board_name?: string | null
         }
         Relationships: []
       }

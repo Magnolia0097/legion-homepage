@@ -4,7 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import type { DailyData } from '@/app/api/voice/_mock/trend'
+import type { DailyData } from '@/types'
 
 interface Props {
   data: DailyData[]
@@ -31,12 +31,7 @@ export default function TrendChart({ data }: Props) {
         <span className="text-xs font-normal ml-2" style={{ color: 'var(--text-muted)' }}>최근 7일</span>
       </h2>
 
-      <div style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-dark)',
-        borderRadius: '12px',
-        padding: '16px',
-      }}>
+      <div className="voice-card" style={{ padding: '16px' }}>
         <div style={{ height: '200px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>

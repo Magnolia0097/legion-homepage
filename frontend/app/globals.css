@@ -196,6 +196,13 @@ body[data-hero="1"] main {
   scrollbar-color: var(--border-gold) transparent;
 }
 
+/* ── 반응 페이지 공통 카드 ── */
+.voice-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dark);
+  border-radius: 12px;
+}
+
 /* ── 반응 페이지 게시글 목록 스크롤바 ── */
 .voice-post-list::-webkit-scrollbar {
   width: 4px;

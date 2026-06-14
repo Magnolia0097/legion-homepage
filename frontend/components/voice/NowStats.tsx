@@ -1,7 +1,7 @@
 'use client'
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import type { NowData } from '@/app/api/voice/_mock/now'
+import type { NowData } from '@/types'
 
 const SENTIMENT_COLORS = {
   긍정: '#81c784',
@@ -15,12 +15,12 @@ interface Props {
 
 export default function NowStats({ data }: Props) {
   const pieData = [
-    { name: '긍정', value: data.positive_count },
-    { name: '부정', value: data.negative_count },
-    { name: '중립', value: data.neutral_count },
+    { name: '긍정', value: data.positive_count ?? 0 },
+    { name: '부정', value: data.negative_count ?? 0 },
+    { name: '중립', value: data.neutral_count ?? 0 },
   ].filter(d => d.value > 0)
 
-  const topKeywords = data.top_keywords.slice(0, 3)
+  const topKeywords = (data.top_keywords ?? []).slice(0, 3)
 
   return (
     <div>
@@ -31,24 +31,14 @@ export default function NowStats({ data }: Props) {
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {/* 카드 1: 총 글 수 */}
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-dark)',
-          borderRadius: '12px',
-          padding: '16px',
-        }}>
+        <div className="voice-card" style={{ padding: '16px' }}>
           <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>총 글 수</p>
           <p className="text-3xl font-bold" style={{ color: 'var(--gold-light)' }}>{data.total_count}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>건</p>
         </div>
 
         {/* 카드 2: 감성 분포 도넛 차트 */}
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-dark)',
-          borderRadius: '12px',
-          padding: '16px',
-        }}>
+        <div className="voice-card" style={{ padding: '16px' }}>
           <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>감성 분포</p>
           <div style={{ height: '100px' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -94,12 +84,7 @@ export default function NowStats({ data }: Props) {
         </div>
 
         {/* 카드 3: 주요 키워드 TOP 3 */}
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-dark)',
-          borderRadius: '12px',
-          padding: '16px',
-        }}>
+        <div className="voice-card" style={{ padding: '16px' }}>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>주요 키워드 TOP 3</p>
           <div className="space-y-2">
             {topKeywords.map((kw, i) => (

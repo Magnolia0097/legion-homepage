@@ -117,6 +117,16 @@ export default function ClassBoard() {
             <div
               key={cls.name}
               onClick={() => stat && setSelected(isSelected ? null : cls.name)}
+              onKeyDown={stat ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setSelected(isSelected ? null : cls.name)
+                }
+              } : undefined}
+              role={stat ? 'button' : undefined}
+              tabIndex={stat ? 0 : undefined}
+              aria-expanded={stat ? isSelected : undefined}
+              aria-label={stat ? `${cls.name} 반응 ${isSelected ? '접기' : '펼치기'}` : undefined}
               style={{
                 background: 'var(--bg-card)',
                 border: `1px solid ${stat ? (isSelected ? cls.color : baseBorder + '55') : 'var(--border-dark)'}`,

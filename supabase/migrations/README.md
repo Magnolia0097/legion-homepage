@@ -30,3 +30,4 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > supabase/types.
 | 파일 | 설명 |
 |------|------|
 | `001_voice_tracker.sql` | voice_raw_posts · voice_hourly_stats · voice_daily_stats 테이블 + RLS |
+| `002_add_board_name.sql` | voice_raw_posts.board_name 컬럼 + 인덱스 (직업별 게시판 식별) |

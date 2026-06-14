@@ -1,24 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-
-export interface PostItem {
-  id: number
-  title: string
-  url: string
-  sentiment: string
-  issue_summary: string | null
-}
-
-interface DailyIssue {
-  summary: string
-  count: number
-}
+import type { DailyIssue, VoicePost } from '@/types'
 
 interface Props {
   issue: DailyIssue
   rank: number
-  posts?: PostItem[]
+  posts?: VoicePost[]
 }
 
 const SENTIMENT_COLOR: Record<string, string> = {
@@ -38,12 +26,7 @@ export default function DailyIssueCard({ issue, rank, posts = [] }: Props) {
   const relatedPosts = posts.filter(p => p.issue_summary === issue.summary)
 
   return (
-    <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-dark)',
-      borderRadius: '12px',
-      padding: '16px',
-    }}>
+    <div className="voice-card" style={{ padding: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
         <span style={{
           flexShrink: 0,

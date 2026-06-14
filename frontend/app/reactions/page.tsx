@@ -59,13 +59,14 @@ export default function ReactionsPage() {
         if (!e1 && nowRow) {
           setNowData(nowRow as NowData)
           setHasData(true)
-          const todayRow = trendRows?.[0]
-          const issues = (todayRow?.top_issues ?? []) as DailyIssue[]
-          setDailyIssues(issues.slice(0, 5))
         }
 
         if (!e2 && trendRows?.length) {
           setTrendData([...trendRows].reverse() as DailyData[])
+          setHasData(true)
+          const todayRow = trendRows[0]
+          const issues = (todayRow?.top_issues ?? []) as DailyIssue[]
+          setDailyIssues(issues.slice(0, 5))
         }
 
         setTodayPosts((rawPosts ?? []) as PostItem[])

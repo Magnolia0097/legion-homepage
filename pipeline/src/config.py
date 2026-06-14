@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Gemini API
     gemini_api_key: str
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.0-flash-lite"
 
     # Supabase
     supabase_url: str

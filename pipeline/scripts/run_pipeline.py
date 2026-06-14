@@ -104,7 +104,7 @@ def main() -> None:
     )
     # ── 5. 집계 갱신 ─────────────────────────────────────────────────────────
     try:
-        hourly = refresh_hourly_stats(hours_back=3)
+        hourly = refresh_hourly_stats(hours_back=24)
         daily = refresh_daily_stats(days_back=2)
         logger.info("집계: hourly %d개 시간대, daily %d개 일자", hourly, daily)
     except Exception as exc:

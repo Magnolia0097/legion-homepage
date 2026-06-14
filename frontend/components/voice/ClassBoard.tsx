@@ -173,7 +173,7 @@ export default function ClassBoard() {
           <p style={{ fontSize: '13px', fontWeight: 700, color: selectedColor, marginBottom: '10px' }}>
             {selected} 게시글 ({selectedStat.posts.length}건)
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '320px', overflowY: 'auto' }}>
+          <div className="voice-post-list" style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '320px', overflowY: 'auto' }}>
             {selectedStat.posts.map(post => (
               <a
                 key={post.id}

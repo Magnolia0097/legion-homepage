@@ -196,6 +196,26 @@ body[data-hero="1"] main {
   scrollbar-color: var(--border-gold) transparent;
 }
 
+/* ── 반응 페이지 게시글 목록 스크롤바 ── */
+.voice-post-list::-webkit-scrollbar {
+  width: 4px;
+}
+.voice-post-list::-webkit-scrollbar-track {
+  background: var(--bg-base);
+  border-radius: 2px;
+}
+.voice-post-list::-webkit-scrollbar-thumb {
+  background: var(--gold-dark);
+  border-radius: 2px;
+}
+.voice-post-list::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-mid);
+}
+.voice-post-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold-dark) var(--bg-base);
+}
+
 /* ── 멤버 플레이스홀더 shimmer (천천히 한 번, 이후 긴 휴식) ── */
 @keyframes shimmer-pulse {
   0%   { background-position: 220% center; }

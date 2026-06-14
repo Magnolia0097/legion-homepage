@@ -28,6 +28,7 @@ from src.config import get_settings
 from src.db import fetch_unclassified, mark_as_spam, reset_all_classifications
 from src.processors.classifier import QuotaExhausted, classify_post, update_classification
 from src.processors.filter import is_spam
+from src.processors.hybrid import classify_hybrid
 from src.processors.local_sentiment import classify_local
 from src.processors.transformer_sentiment import classify_transformer
 
@@ -90,6 +91,10 @@ def main() -> None:
     spam_count = 0
     classified_count = 0
     failed_count = 0
+    deferred_count = 0  # 예산 부족으로 분류 보류된 애매한 글 (다음 실행 재시도)
+    gemini_count = 0  # 이번 실행에서 실제 Gemini를 호출한 건수
+    gemini_budget = settings.gemini_calls_per_run  # 실행당 Gemini 호출 상한
+    gemini_dead = False  # 쿼터 소진되면 True → 이후엔 무료 경로만
 
     for post in unclassified:
         post_id = post["id"]
@@ -101,13 +106,31 @@ def main() -> None:
             continue
 
         # ── 4. 분류 (Tier-2) ──────────────────────────────────────────────────
-        if mode == "transformer":
+        api_called = False
+        if mode == "hybrid":
+            # 질문/명백한 글은 무료 키워드, 애매한 의견글만 Gemini (예산 안에서)
+            use_gemini = (not gemini_dead) and gemini_budget > 0
+            try:
+                result, api_called = classify_hybrid(post, use_gemini)
+            except QuotaExhausted:
+                logger.warning("Gemini 쿼터 소진 — 이후 무료 경로로 전환 (LLM %d건 호출)", gemini_count)
+                gemini_dead = True
+                result, api_called = classify_hybrid(post, use_gemini=False)
+            if api_called:
+                gemini_budget -= 1
+                gemini_count += 1
+            if result is None:
+                # 애매한데 예산 없음 → 보류. 다음 실행에서 Gemini로 재시도.
+                deferred_count += 1
+                continue
+        elif mode == "transformer":
             # 로컬 감성 트랜스포머 — API 호출 없음, 한도·지연 없음 (맥락 이해)
             result = classify_transformer(post)
         elif mode == "local":
             # 로컬 키워드 분류 — API 호출 없음, 한도·지연 없음
             result = classify_local(post)
         else:
+            api_called = True
             try:
                 result = classify_post(post)
             except QuotaExhausted:
@@ -120,12 +143,13 @@ def main() -> None:
 
         update_classification(post_id, result)
         classified_count += 1
-        if mode == "gemini":
+        # Gemini를 실제로 부른 경우에만 RPM 제한 대비 슬립
+        if api_called:
             time.sleep(_CLASSIFY_SLEEP)
 
     logger.info(
-        "처리 완료 — 스팸: %d건, 분류 성공: %d건, 분류 실패: %d건",
-        spam_count, classified_count, failed_count,
+        "처리 완료 — 스팸: %d건, 분류 성공: %d건(그중 Gemini %d건), 보류: %d건, 실패: %d건",
+        spam_count, classified_count, gemini_count, deferred_count, failed_count,
     )
     # ── 5. 집계 갱신 ─────────────────────────────────────────────────────────
     try:

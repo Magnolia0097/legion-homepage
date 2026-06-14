@@ -11,25 +11,15 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
     "requests>=2.32",
-    # 로컬 한국어 감성 트랜스포머 (CLASSIFIER_MODE=transformer)
-    "transformers>=4.44",
-    "torch>=2.2",
 ]
+# 참고: CLASSIFIER_MODE=transformer 로컬 BERT를 쓰려면 transformers·torch 추가 필요.
+# 현재 기본은 hybrid(키워드+Gemini)라 무거운 ML 의존성을 두지 않는다.
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "ruff>=0.8",
 ]
-
-# torch는 기본 인덱스가 CUDA 빌드(2GB+)라 CPU 전용 휠로 강제 — 러너 설치 시간 단축
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
 
 [tool.ruff]
 line-length = 100

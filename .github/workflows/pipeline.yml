@@ -13,7 +13,7 @@ on:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 30   # 첫 실행은 torch 설치 + 모델 다운로드로 시간 소요 (이후 캐시)
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -25,14 +25,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
-          enable-cache: true        # uv 패키지 캐시 (torch 재다운로드 방지)
-
-      - name: Cache HuggingFace models
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface
-          key: hf-${{ hashFiles('pipeline/src/config.py') }}
-          restore-keys: hf-
+          enable-cache: true        # uv 패키지 캐시
 
       - name: Create pipeline .env
         run: |
@@ -42,8 +35,8 @@ jobs:
           INVEN_BOARD_IDS=6388,6438,6448,6449,6450,6451,6452,6453,6454
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL=gemini-2.5-flash-lite
-          CLASSIFIER_MODE=transformer
-          TRANSFORMER_MODEL=sangrimlee/bert-base-multilingual-cased-nsmc
+          CLASSIFIER_MODE=hybrid
+          GEMINI_CALLS_PER_RUN=12
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

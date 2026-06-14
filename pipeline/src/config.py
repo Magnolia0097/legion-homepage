@@ -16,10 +16,15 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash-lite"
 
     # 분류기 모드:
-    #   "transformer" = 로컬 한국어 감성 BERT (무료·무제한·맥락이해, 추천)
+    #   "hybrid"      = 질문/명백한 글은 무료 키워드, 애매한 의견글만 Gemini (추천)
+    #   "transformer" = 로컬 한국어 감성 BERT (무료·무제한, 맥락이해 일부)
     #   "local"       = 키워드 점수 (무료·무제한, 가볍지만 맥락 약함)
-    #   "gemini"      = LLM (무료 한도 제약)
-    classifier_mode: str = "transformer"
+    #   "gemini"      = 전부 LLM (무료 한도 제약 큼)
+    classifier_mode: str = "hybrid"
+
+    # hybrid 모드: 실행(run) 1회당 Gemini 호출 상한 — 무료 RPD 한도 초과 방지.
+    # 2시간마다 실행(하루 12회)이므로 12 → 하루 약 144건까지 LLM 분류.
+    gemini_calls_per_run: int = 12
 
     # transformer 모드에서 쓸 한국어 감성 모델 (HuggingFace Hub)
     transformer_model: str = "sangrimlee/bert-base-multilingual-cased-nsmc"

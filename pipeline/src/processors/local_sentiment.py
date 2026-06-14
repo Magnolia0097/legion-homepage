@@ -76,9 +76,46 @@ _SARCASM = re.compile(r"(최고|갓|좋다|좋네|대박|굿|짱).{0,5}(ㅡㅡ|�
 # 추천 부정 패턴 — "비추", "추천 안", "추천 못" 등
 _ANTI_RECOMMEND = re.compile(r"(비추|추천\s*(안|못|X|x))")
 
+# 질문·정보 요청 패턴 — 의견이 아닌 중립 문의 글을 가려냄.
+# 하이브리드에서 이런 글은 LLM/모델 없이 바로 중립 처리(무료).
+_QUESTION = re.compile(
+    r"[?？]"                                               # 물음표 포함
+    r"|(?:나요|인가요|할까요|을까요|일까요|어떨까요|올까요|ㄴ가요|인지요)\s*$"
+    r"|(?:알려주세요|알려줘요|알려줘|가르쳐주세요|도와주세요|부탁드려요|부탁해요|해주세요)"
+    r"|(?:모르겠|궁금|질문|문의|어떻게\s|어떤\s|뭔가|뭐가\s|어디서|얼마나)"
+    r"|(?:방법\s*(?:좀|있|알)|추천\s*부탁|추천해\s*주)"
+    r"|^(?:질문|궁금|문의)"
+)
+
+
+def is_question(text: str) -> bool:
+    """제목이 질문·정보 요청·중립 문의 형태인지 판단."""
+    return bool(_QUESTION.search((text or "")[:200]))
+
 
 def _score(text: str, lexicon: dict[str, int]) -> int:
     return sum(weight for kw, weight in lexicon.items() if kw in text)
+
+
+def score_sentiment(post: dict) -> tuple[int, int]:
+    """게시글의 (부정점수, 긍정점수)를 반환 — 하이브리드 확신도 판단용.
+
+    |부정-긍정| 차이가 클수록 키워드만으로도 확신할 수 있는 글이다.
+    """
+    title = (post.get("title") or "").strip()
+    body = (post.get("body") or "").strip()
+    text = f"{title} {body}"
+
+    neg = _score(text, _NEGATIVE)
+    pos = _score(text, _POSITIVE)
+
+    # "안 좋다"·반어·비추천 보정: 긍정 점수를 부정으로 이동
+    for pattern in (_NEG_FLIP, _SARCASM, _ANTI_RECOMMEND):
+        if pattern.search(text):
+            neg += 2
+            pos = max(0, pos - 2)
+
+    return neg, pos
 
 
 def classify_local(post: dict) -> dict:
@@ -92,23 +129,7 @@ def classify_local(post: dict) -> dict:
     body = (post.get("body") or "").strip()
     text = f"{title} {body}"
 
-    neg = _score(text, _NEGATIVE)
-    pos = _score(text, _POSITIVE)
-
-    # "안 좋다" 같은 부정 표현 보정: 긍정 점수를 부정으로 이동
-    if _NEG_FLIP.search(text):
-        neg += 2
-        pos = max(0, pos - 2)
-
-    # 반어(빈정거림) 보정: "최고 ㅡㅡ", "갓 ㅋㅋ" 등
-    if _SARCASM.search(text):
-        neg += 2
-        pos = max(0, pos - 2)
-
-    # 비추천 보정: "비추", "추천 안 함" 등
-    if _ANTI_RECOMMEND.search(text):
-        neg += 2
-        pos = max(0, pos - 2)
+    neg, pos = score_sentiment(post)
 
     if neg > pos:
         sentiment = "negative"

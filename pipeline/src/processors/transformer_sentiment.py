@@ -17,30 +17,11 @@ BERT 계열 감성 모델을 GitHub Actions 러너의 CPU에서 직접 실행한
 from __future__ import annotations
 
 import logging
-import re
 
 from ..config import get_settings
-from .local_sentiment import _categorize, _extract_keywords, classify_local
+from .local_sentiment import _categorize, _extract_keywords, classify_local, is_question
 
 logger = logging.getLogger(__name__)
-
-# 의견글 vs 질문·정보글 구분 ──────────────────────────────────────────────────
-# 이진 트랜스포머는 의견(리뷰) 데이터로 학습 → 질문글에 억지로 긍/부 판정하면
-# 거의 무조건 부정이 나온다. 질문/정보 요청은 먼저 중립으로 처리.
-_QUESTION = re.compile(
-    r"[?？]"                                               # 물음표 포함
-    r"|(?:나요|인가요|할까요|을까요|일까요|어떨까요|올까요|ㄴ가요|인지요)\s*$"
-    r"|(?:알려주세요|알려줘요|알려줘|가르쳐주세요|도와주세요|부탁드려요|부탁해요|해주세요)"
-    r"|(?:모르겠|궁금|질문|문의|어떻게\s|어떤\s|뭔가|뭐가\s|어디서|얼마나)"
-    r"|(?:방법\s*(?:좀|있|알)|추천\s*부탁|추천해\s*주)"
-    r"|^(?:질문|궁금|문의)"
-)
-
-
-def _is_question(text: str) -> bool:
-    """제목이 질문·정보 요청·중립 문의 형태인지 판단."""
-    return bool(_QUESTION.search(text[:200]))
-
 
 # 이진 판정 ────────────────────────────────────────────────────────────────────
 # 질문이 아닌 의견글에서는 중립을 내지 않는다.
@@ -103,7 +84,7 @@ def classify_transformer(post: dict) -> dict:
 
     # 질문·정보 요청 글은 트랜스포머 전에 중립으로 처리.
     # 이진 모델은 의견글(리뷰)로만 학습 → 질문글에 적용하면 오분류(대부분 부정) 발생.
-    if _is_question(title):
+    if is_question(title):
         return {
             "sentiment": "neutral",
             "categories": _categorize(text),

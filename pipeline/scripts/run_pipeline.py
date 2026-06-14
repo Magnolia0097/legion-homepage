@@ -35,7 +35,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_CLASSIFY_SLEEP = 12.0  # gemini-2.5-flash 무료 5 RPM → 12초 간격 유지
+_CLASSIFY_SLEEP = 4.5  # gemini-2.5-flash-lite 무료 15 RPM → 4.5초 간격 (≈13 req/분)
 _KST = timezone(timedelta(hours=9))
 
 

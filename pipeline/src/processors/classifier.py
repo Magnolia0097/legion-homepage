@@ -28,6 +28,30 @@ class QuotaExhausted(Exception):
     """Gemini API 일일/분당 쿼터 소진 — 해당 배치 분류를 즉시 중단해야 함."""
 
 
+# 분류 모델 폴백 체인 — 앞에서부터 시도, 404(퇴역)·429(쿼터소진)면 다음 모델로.
+# 무료 한도가 큰(또는 살아있을 가능성이 높은) 모델을 앞에 배치.
+# 이 프로젝트의 무료 할당이 들쭉날쭉이라(2.5-flash=20RPD, 1.5-flash=404,
+# 2.0-flash-lite=0) 여러 후보를 순회해 살아있는 모델을 자동 선택한다.
+_FALLBACK_MODELS: list[str] = [
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
+]
+
+# 이번 실행에서 404/쿼터소진으로 사용 불가 판정된 모델 (호출 낭비 방지)
+_dead_models: set[str] = set()
+
+
+def _model_chain() -> list[str]:
+    """설정 모델을 맨 앞에 두고 폴백 모델을 이어붙인 시도 순서 (dead 제외)."""
+    settings = get_settings()
+    chain: list[str] = [settings.gemini_model]
+    for m in _FALLBACK_MODELS:
+        if m not in chain:
+            chain.append(m)
+    return [m for m in chain if m not in _dead_models]
+
+
 # {{ }} 로 중괄호 이스케이프 — .format()이 title/body만 치환
 _PROMPT_TEMPLATE = """\
 당신은 Aion 2(아이온2) 한국 게임 커뮤니티 게시글을 분석하는 전문가입니다.
@@ -101,41 +125,60 @@ def classify_post(post: dict) -> dict | None:
     body = (post.get("body") or "").strip() or "(없음)"
     prompt = _PROMPT_TEMPLATE.format(title=title, body=body)
 
-    try:
-        client = _get_client()
-        settings = get_settings()
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.3,
-            ),
-        )
-        result = json.loads(response.text)
-    except Exception as exc:
-        exc_str = str(exc)
-        if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
-            raise QuotaExhausted(exc_str[:200]) from exc
-        logger.warning("Gemini 분류 실패 (title=%r): %s", title[:30], exc)
-        return None
+    chain = _model_chain()
+    if not chain:
+        raise QuotaExhausted("모든 후보 모델 사용 불가")
 
-    sentiment = result.get("sentiment", "neutral")
-    if sentiment not in VALID_SENTIMENTS:
-        sentiment = "neutral"
+    client = _get_client()
+    last_quota_exc: str | None = None
 
-    raw_cats = result.get("categories") or []
-    categories = [c for c in raw_cats if c in VALID_CATEGORIES][:3] or ["기타"]
+    for model in chain:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3,
+                ),
+            )
+            result = json.loads(response.text)
+        except Exception as exc:
+            exc_str = str(exc)
+            # 404=모델 퇴역/미지원, limit:0 또는 429=쿼터소진 → 이번 실행 동안 dead 처리 후 다음 모델
+            if "404" in exc_str or "NOT_FOUND" in exc_str:
+                logger.warning("모델 %s 사용 불가(404) — 폴백", model)
+                _dead_models.add(model)
+                continue
+            if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+                logger.warning("모델 %s 쿼터 소진 — 폴백", model)
+                _dead_models.add(model)
+                last_quota_exc = exc_str[:200]
+                continue
+            logger.warning("Gemini 분류 실패 (title=%r, model=%s): %s", title[:30], model, exc)
+            return None
 
-    issue_summary = (result.get("issue_summary") or "").strip() or None
-    keywords = [str(k) for k in (result.get("keywords") or [])][:5]
+        # 분류 성공
+        sentiment = result.get("sentiment", "neutral")
+        if sentiment not in VALID_SENTIMENTS:
+            sentiment = "neutral"
 
-    return {
-        "sentiment": sentiment,
-        "categories": categories,
-        "issue_summary": issue_summary,
-        "keywords": keywords,
-    }
+        raw_cats = result.get("categories") or []
+        categories = [c for c in raw_cats if c in VALID_CATEGORIES][:3] or ["기타"]
+
+        issue_summary = (result.get("issue_summary") or "").strip() or None
+        keywords = [str(k) for k in (result.get("keywords") or [])][:5]
+
+        return {
+            "sentiment": sentiment,
+            "categories": categories,
+            "issue_summary": issue_summary,
+            "keywords": keywords,
+            "model": model,
+        }
+
+    # 체인의 모든 모델이 404/쿼터소진 → 배치 중단 신호
+    raise QuotaExhausted(last_quota_exc or "모든 후보 모델 사용 불가")
 
 
 def update_classification(post_id: int, result: dict) -> bool:

@@ -23,9 +23,9 @@ from .local_sentiment import _categorize, _extract_keywords, classify_local
 
 logger = logging.getLogger(__name__)
 
-# 모델 확신도가 이 구간 안이면(긍정확률이 [0.5-margin, 0.5+margin]) 중립으로 판정.
-# 이진 모델이라 pos+neg≈1 → |pos-neg| < 2*margin 이면 애매 → neutral.
-_NEUTRAL_MARGIN = 0.20  # 긍정확률 0.30~0.70 → 중립
+# 중립을 거의 만들지 않는다 — 이진 모델(긍/부) 확률 중 높은 쪽으로 무조건 결정.
+# 두 확률이 사실상 동률(차이 < _TIE_EPS)일 때만 neutral. 실수 확률상 거의 발생 안 함.
+_TIE_EPS = 0.0  # 0이면 neutral 완전 비활성화 (항상 긍/부로 갈림)
 
 _pipe = None
 _load_failed = False
@@ -99,9 +99,9 @@ def classify_transformer(post: dict) -> dict:
     if pos_prob == 0.0 and neg_prob == 0.0:
         return classify_local(post)
 
-    if abs(pos_prob - neg_prob) < 2 * _NEUTRAL_MARGIN:
-        sentiment = "neutral"
-    elif pos_prob > neg_prob:
+    if abs(pos_prob - neg_prob) <= _TIE_EPS:
+        sentiment = "neutral"  # _TIE_EPS=0 이면 사실상 발생하지 않음
+    elif pos_prob >= neg_prob:
         sentiment = "positive"
     else:
         sentiment = "negative"

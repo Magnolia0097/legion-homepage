@@ -48,6 +48,37 @@ def fetch_unclassified(limit: int = 50) -> list[dict]:
         return []
 
 
+def reset_all_classifications() -> int:
+    """모든 게시글의 분류를 초기화(classified_at=NULL)해 다음 실행 때 재분류되게 함.
+
+    분류 로직(예: 중립 제거)을 바꾼 뒤 기존 데이터까지 새 기준으로 다시 매기고 싶을 때 사용.
+    스팸 포함 전부 초기화 — 다음 실행에서 필터·분류를 다시 거친다.
+
+    Returns:
+        초기화된 행 수 (응답 데이터 기준).
+    """
+    db = get_supabase(use_service_role=True)
+    try:
+        resp = (
+            db.table("voice_raw_posts")
+            .update({
+                "classified_at": None,
+                "sentiment": None,
+                "categories": None,
+                "issue_summary": None,
+                "keywords": None,
+            })
+            .not_.is_("classified_at", "null")
+            .execute()
+        )
+        count = len(resp.data or [])
+        logger.info("분류 초기화 완료: %d건", count)
+        return count
+    except Exception as exc:
+        logger.error("분류 초기화 실패: %s", exc)
+        return 0
+
+
 def mark_as_spam(post_id: int) -> None:
     """스팸 게시글을 sentiment='spam'으로 마킹하고 classified_at을 기록."""
     db = get_supabase(use_service_role=True)

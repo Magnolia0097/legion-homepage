@@ -13,6 +13,7 @@ cron으로 30분마다 실행:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -24,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.aggregators.hourly import refresh_daily_stats, refresh_hourly_stats
 from src.collectors.inven import collect_inven_aion2, save_posts
 from src.config import get_settings
-from src.db import fetch_unclassified, mark_as_spam
+from src.db import fetch_unclassified, mark_as_spam, reset_all_classifications
 from src.processors.classifier import QuotaExhausted, classify_post, update_classification
 from src.processors.filter import is_spam
 from src.processors.local_sentiment import classify_local
@@ -52,6 +53,12 @@ def _is_today_kst(iso_str: str) -> bool:
 
 def main() -> None:
     logger.info("=== 파이프라인 시작 ===")
+
+    # ── 0. (선택) 전체 재분류 — RESET_CLASSIFICATIONS=1 일 때만 ────────────────
+    # 분류 기준을 바꾼 뒤 기존 데이터까지 새 기준으로 다시 매기고 싶을 때 사용.
+    if os.environ.get("RESET_CLASSIFICATIONS", "").strip().lower() in ("1", "true", "yes"):
+        logger.info("RESET_CLASSIFICATIONS=on → 기존 분류 초기화 후 재분류")
+        reset_all_classifications()
 
     # ── 1. 수집 (설정된 모든 게시판) ─────────────────────────────────────────
     settings = get_settings()

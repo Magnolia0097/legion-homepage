@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 */2 * * *'   # 2시간마다 자동 실행 (KST 기준 짝수 시)
   workflow_dispatch:          # GitHub에서 수동 실행 버튼
+    inputs:
+      reset_classifications:
+        description: '기존 분류를 모두 초기화하고 재분류 (중립 제거 등 새 기준 적용)'
+        type: boolean
+        default: false
 
 jobs:
   run-pipeline:
@@ -50,4 +55,6 @@ jobs:
 
       - name: Run pipeline
         working-directory: pipeline
+        env:
+          RESET_CLASSIFICATIONS: ${{ github.event.inputs.reset_classifications }}
         run: uv run python scripts/run_pipeline.py

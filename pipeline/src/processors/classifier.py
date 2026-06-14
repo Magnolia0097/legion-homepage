@@ -23,12 +23,24 @@ VALID_CATEGORIES: list[str] = [
     "클래스밸런스", "버그오류", "콘텐츠", "이벤트과금", "커뮤니티", "기타",
 ]
 
+
+class QuotaExhausted(Exception):
+    """Gemini API 일일/분당 쿼터 소진 — 해당 배치 분류를 즉시 중단해야 함."""
+
+
 # {{ }} 로 중괄호 이스케이프 — .format()이 title/body만 치환
 _PROMPT_TEMPLATE = """\
-당신은 Aion 2(아이온2) 게임 커뮤니티 게시글을 분석하는 전문가입니다.
-아래 게시글을 읽고 JSON 형식으로 분석 결과를 반환하세요.
+당신은 Aion 2(아이온2) 한국 게임 커뮤니티 게시글을 분석하는 전문가입니다.
+제목만으로도 판단하세요 — 본문이 "(없음)"이면 제목의 어조와 단어만으로 감정을 결정합니다.
 
-출력 형식:
+## 감정 분류 기준 (엄격히 적용)
+- negative: 불만·비판·항의·탓·욕설·포기·환불·버그 신고·하향/너프 요구·게임사 비판
+  예) "왜이러냐", "개같다", "망했다", "때문임", "탓이다", "ㅡㅡ", "최악", "접겠다", "환불", "짜증", "사기임", "답없다", "나락"
+- positive: 칭찬·기쁨·성공·공략 공유·감사·상향 환영·이벤트 긍정
+  예) "좋다", "최고", "드디어", "성공", "졸업", "완료", "감사", "추천"
+- neutral: 질문·정보 요청·단순 공지·중립적 관찰 (불만/칭찬 없이 사실만 서술)
+
+## 출력 형식 (JSON만, 다른 텍스트 없이)
 {{
   "sentiment": "positive" | "negative" | "neutral",
   "categories": ["카테고리1"],
@@ -36,27 +48,37 @@ _PROMPT_TEMPLATE = """\
   "keywords": ["키워드1", "키워드2"]
 }}
 
-카테고리 목록 (최대 3개 선택): 클래스밸런스, 버그오류, 콘텐츠, 이벤트과금, 커뮤니티, 기타
+카테고리 목록 (최대 3개): 클래스밸런스, 버그오류, 콘텐츠, 이벤트과금, 커뮤니티, 기타
 
---- 예시 1 ---
-제목: 글라디에이터 상향 패치 드디어 나왔네요 너무 좋아요
+--- 예시 1 (negative - 탓/비난) ---
+제목: 이게다 운영진때문임 진짜
 본문: (없음)
-결과: {{"sentiment": "positive", "categories": ["클래스밸런스"], "issue_summary": "글라디에이터 상향 패치에 대한 긍정적 반응.", "keywords": ["글라디에이터", "상향", "패치"]}}
+결과: {{"sentiment": "negative", "categories": ["커뮤니티"], "issue_summary": "운영진 탓으로 게임 문제를 돌리는 불만 글.", "keywords": ["운영진", "비난"]}}
 
---- 예시 2 ---
+--- 예시 2 (negative - 포기/접속) ---
+제목: 싀벌꺼 접을란다
+본문: (없음)
+결과: {{"sentiment": "negative", "categories": ["기타"], "issue_summary": "게임에 대한 극도의 불만으로 게임 포기 선언.", "keywords": ["포기", "불만"]}}
+
+--- 예시 3 (negative - 버그 비판) ---
 제목: 마도성 스킬 쿨다운 버그 아직도 안 고쳐짐 언제 고쳐요
 본문: 어제 패치 이후로 쿨다운이 표시랑 달라요
 결과: {{"sentiment": "negative", "categories": ["버그오류", "클래스밸런스"], "issue_summary": "마도성 스킬 쿨다운 버그가 패치 후에도 지속되어 불만 제기.", "keywords": ["마도성", "쿨다운", "버그", "패치"]}}
 
---- 예시 3 ---
-제목: 이번 여름 이벤트 보상 너무 짜다 솔직히
+--- 예시 4 (positive - 성공/공유) ---
+제목: 아르카나 완료 ㅠㅠ 드디어 졸업합니다
 본문: (없음)
-결과: {{"sentiment": "negative", "categories": ["이벤트과금"], "issue_summary": "여름 이벤트 보상이 불만족스럽다는 의견.", "keywords": ["이벤트", "보상"]}}
+결과: {{"sentiment": "positive", "categories": ["콘텐츠"], "issue_summary": "아르카나 콘텐츠 완료에 대한 성취감 표현.", "keywords": ["아르카나", "졸업", "완료"]}}
 
---- 예시 4 ---
+--- 예시 5 (positive - 공략 공유) ---
 제목: 호법성 초보용 스킬 트리 추천해드립니다
 본문: 저도 처음엔 어려웠는데 이렇게 찍으니 훨씬 편해요
 결과: {{"sentiment": "positive", "categories": ["콘텐츠", "커뮤니티"], "issue_summary": "호법성 스킬 트리 공략 정보 공유.", "keywords": ["호법성", "스킬트리", "초보"]}}
+
+--- 예시 6 (neutral - 질문) ---
+제목: pvp 명중셋 회피셋 치명타 몇 나오시나요?
+본문: (없음)
+결과: {{"sentiment": "neutral", "categories": ["콘텐츠"], "issue_summary": "PVP 장비 세팅 치명타 수치 문의.", "keywords": ["pvp", "명중", "회피", "치명타"]}}
 
 --- 분석 대상 ---
 제목: {title}
@@ -87,11 +109,14 @@ def classify_post(post: dict) -> dict | None:
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.1,
+                temperature=0.3,
             ),
         )
         result = json.loads(response.text)
     except Exception as exc:
+        exc_str = str(exc)
+        if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+            raise QuotaExhausted(exc_str[:200]) from exc
         logger.warning("Gemini 분류 실패 (title=%r): %s", title[:30], exc)
         return None
 

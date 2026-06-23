@@ -18,7 +18,7 @@ route.get('/', async (c) => {
     'SELECT key, value FROM site_settings'
   ).all<{ key: string; value: string }>()
 
-  const settings: Record<string, string> = { join_conditions: '', join_method: '' }
+  const settings: Record<string, string> = { join_conditions: '', join_method: '', hero_enabled: '0' }
   for (const row of rows.results) {
     settings[row.key] = row.value
   }
@@ -31,7 +31,7 @@ route.put('/', requireSuperAdmin, async (c) => {
   await ensureTable(c.env.DB)
 
   const body = await c.req.json<Record<string, string>>()
-  const allowed = ['join_conditions', 'join_method']
+  const allowed = ['join_conditions', 'join_method', 'hero_enabled']
 
   const updates = Object.entries(body).filter(([k]) => allowed.includes(k))
   if (updates.length === 0) {

@@ -337,10 +337,11 @@ export const commentApi = {
     fetchWithAuth(`${API_BASE}/api/comments/${id}`, { method: 'DELETE' }),
 }
 
-// ─── 사이트 설정 (가입조건/가입방법) ───
+// ─── 사이트 설정 (가입조건/가입방법/이달의모델) ───
 export interface SiteSettings {
   join_conditions: string
   join_method: string
+  hero_enabled: string
 }
 
 export const siteSettingsApi = {

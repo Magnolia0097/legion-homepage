@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { memberApi, siteSettingsApi, type SiteSettings } from '@/lib/api'
+import { memberApi, siteSettingsApi, authApi, type SiteSettings } from '@/lib/api'
 import { renderHtml } from '@/components/RichTextEditor'
 import type { Member } from '@/types'
+import SuperAdminHero from '@/components/SuperAdminHero'
 
 // 홈 화면에 표시할 주요 직급 (이 목록에 없는 직급은 홈에서 숨김)
 const FEATURED_ROLES = ['군단장', '엘리트장교', '명예장교']
@@ -195,7 +196,10 @@ export default function HomePage() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
-  const [settings, setSettings] = useState<SiteSettings>({ join_conditions: '', join_method: '' })
+  const [settings, setSettings] = useState<SiteSettings>({ join_conditions: '', join_method: '', hero_enabled: '0' })
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [heroRoot, setHeroRoot] = useState<Element | null>(null)
+
   function loadMembers() {
     setLoading(true)
     setError(false)
@@ -211,6 +215,14 @@ export default function HomePage() {
   useEffect(() => {
     loadMembers()
     siteSettingsApi.get().then(setSettings).catch(() => {})
+    setHeroRoot(document.getElementById('hero-root'))
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null
+    if (token) {
+      authApi.verify().then((res) => {
+        if (res.isSuperAdmin) setIsSuperAdmin(true)
+      }).catch(() => {})
+    }
   }, [])
 
   const grouped = members.reduce<Record<string, Member[]>>((acc, m) => {
@@ -222,8 +234,13 @@ export default function HomePage() {
     .filter(r => FEATURED_ROLES.includes(r))
     .sort((a, b) => (ROLE_ORDER[a] ?? 99) - (ROLE_ORDER[b] ?? 99))
 
+  const showHero = isSuperAdmin || settings.hero_enabled === '1'
+
   return (
     <>
+        {/* ── 이달의 모델 히어로 (포탈) ── */}
+        {showHero && heroRoot && createPortal(<SuperAdminHero />, heroRoot)}
+
         {/* ── 새 디자인 ── */}
         <div style={{ width: '100%', background: 'var(--bg-base)' }}>
 

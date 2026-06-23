@@ -42,9 +42,10 @@ export default function AdminAccountsPage() {
   const [editingPerms, setEditingPerms] = useState<Record<number, string[]>>({})
   const [permSaving, setPermSaving] = useState<Record<number, boolean>>({})
   // 사이트 설정 편집 상태
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>({ join_conditions: '', join_method: '' })
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>({ join_conditions: '', join_method: '', hero_enabled: '0' })
   const [editingSettings, setEditingSettings] = useState<Partial<SiteSettings>>({})
   const [settingsSaving, setSettingsSaving] = useState(false)
+  const [heroToggling, setHeroToggling] = useState(false)
 
   // 닉네임 편집 상태
   const [myNickname, setMyNickname] = useState('')
@@ -133,6 +134,26 @@ export default function AdminAccountsPage() {
       setMessage({ text: '오류가 발생했습니다.', error: true })
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  // ─── 이달의 모델 홈 노출 토글 ───
+  async function toggleHero() {
+    const next = siteSettings.hero_enabled === '1' ? '0' : '1'
+    setHeroToggling(true)
+    try {
+      const res = await siteSettingsApi.update({ hero_enabled: next })
+      if (res.ok) {
+        setSiteSettings((prev) => ({ ...prev, hero_enabled: next }))
+        setMessage({ text: next === '1' ? '이달의 모델이 홈에 공개되었습니다.' : '이달의 모델이 홈에서 숨겨졌습니다.' })
+        setTimeout(() => setMessage(null), 3000)
+      } else {
+        setMessage({ text: '저장에 실패했습니다.', error: true })
+      }
+    } catch {
+      setMessage({ text: '오류가 발생했습니다.', error: true })
+    } finally {
+      setHeroToggling(false)
     }
   }
 
@@ -229,6 +250,51 @@ export default function AdminAccountsPage() {
           {message.text}
         </p>
       )}
+
+      {/* ─── 이달의 모델 홈 노출 설정 ─── */}
+      <div className="rounded-lg p-6"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-gold)' }}>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text-main)' }}>✦ 이달의 모델 홈 노출</h2>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              켜면 홈 화면 최상단에 이달의 모델 히어로 섹션이 모든 방문자에게 표시됩니다.<br />
+              꺼도 최상위 관리자는 항상 미리보기로 확인할 수 있습니다.
+            </p>
+          </div>
+          <button
+            onClick={toggleHero}
+            disabled={heroToggling}
+            style={{
+              flexShrink: 0,
+              width: 52,
+              height: 28,
+              borderRadius: 99,
+              border: 'none',
+              cursor: heroToggling ? 'wait' : 'pointer',
+              background: siteSettings.hero_enabled === '1' ? 'var(--gold-mid)' : 'var(--border-dark)',
+              position: 'relative',
+              transition: 'background 0.2s',
+              opacity: heroToggling ? 0.6 : 1,
+            }}
+          >
+            <span style={{
+              position: 'absolute',
+              top: 3,
+              left: siteSettings.hero_enabled === '1' ? 26 : 3,
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              background: '#fff',
+              transition: 'left 0.2s',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+            }} />
+          </button>
+        </div>
+        <p className="mt-3 text-xs font-semibold" style={{ color: siteSettings.hero_enabled === '1' ? 'var(--gold-mid)' : 'var(--text-muted)' }}>
+          {siteSettings.hero_enabled === '1' ? '● 현재 공개 중' : '● 현재 숨김'}
+        </p>
+      </div>
 
       {/* ─── 가입 안내 설정 ─── */}
       <div className="rounded-lg p-6 space-y-4"

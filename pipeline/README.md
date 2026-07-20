@@ -54,9 +54,24 @@ pipeline/
 │   ├── processors/       # 스팸 필터 + Gemini 분류기
 │   └── aggregators/      # 시간별·일별 집계
 ├── scripts/
-│   └── run_pipeline.py   # 파이프라인 진입점
+│   ├── run_pipeline.py       # 파이프라인 진입점
+│   ├── backup.py             # 테이블 CSV 백업
+│   ├── sample_for_audit.py   # 분류 감사용 sentiment별 50건 샘플 추출 (측정 Phase 2)
+│   ├── eval_classifier.py    # 라벨링된 샘플로 confusion matrix·정확도 산출 (측정 Phase 3)
+│   └── fallback_summary.py   # 폴백/카테고리 필터링 비율 요약 리포트 (측정 Phase 4)
 └── tests/
 ```
+
+## 분류 품질 측정 워크플로
+
+모델 재구축 여부를 정하기 전 원인 진단용 (자세한 배경은 측정 가이드 참조):
+
+1. `supabase/migrations/002_classification_audit.sql` 적용 → 폴백 로그·`classified_by_model` 기록 시작
+2. `uv run python scripts/sample_for_audit.py` → `audit_sample_YYYYMMDD.csv` 150건 추출
+3. CSV의 `label_actual` 컬럼을 사람이 직접 라벨링
+4. `uv run python scripts/eval_classifier.py audit_sample_YYYYMMDD.csv`
+   → 저장된 분류 정확도 + `classify_hybrid` vs `classify_hybrid_v2_experimental` 비교
+5. 1주일 운영 후 `uv run python scripts/fallback_summary.py` → 폴백 비율 리포트
 
 ## 주의사항
 

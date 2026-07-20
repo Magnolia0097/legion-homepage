@@ -1,5 +1,7 @@
 """Gemini 분류기 단위 테스트 — API mock 사용."""
 
+import logging
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +10,7 @@ from src.processors.classifier import (
     VALID_CATEGORIES,
     VALID_SENTIMENTS,
     classify_post,
+    update_classification,
 )
 
 
@@ -19,6 +22,14 @@ def _mock_client(json_text: str) -> MagicMock:
     client = MagicMock()
     client.models.generate_content.return_value = response
     return client
+
+
+@pytest.fixture(autouse=True)
+def mock_supabase():
+    """폴백 로그·분류 저장이 실제 Supabase를 호출하지 않도록 전 테스트에서 mock."""
+    with patch("src.processors.classifier.get_supabase") as mock:
+        mock.return_value = MagicMock()
+        yield mock
 
 
 # ── 정상 분류 ──────────────────────────────────────────────────────────────────
@@ -73,6 +84,75 @@ def test_invalid_sentiment_falls_back_to_neutral(mock_get_client):
         '"issue_summary":"테스트.","keywords":[]}'
     )
     result = classify_post({"title": "아이온2 관련 애매한 감성의 게시글 제목입니다"})
+    assert result["sentiment"] == "neutral"
+
+
+@patch("src.processors.classifier._get_client")
+def test_invalid_sentiment_fallback_logs_warning(mock_get_client, caplog):
+    """neutral 폴백 발동 시 logger.warning으로 제목·원본값·모델이 기록돼야 함."""
+    mock_get_client.return_value = _mock_client(
+        '{"sentiment":"mixed","categories":["기타"],'
+        '"issue_summary":"테스트.","keywords":[]}'
+    )
+    with caplog.at_level(logging.WARNING, logger="src.processors.classifier"):
+        result = classify_post({"title": "아이온2 관련 애매한 감성의 게시글 제목입니다"})
+
+    assert result["sentiment"] == "neutral"
+    warnings = [r for r in caplog.records if "sentiment" in r.getMessage()]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert "mixed" in message                       # 원본 raw 값
+    assert "아이온2 관련 애매한 감성의 게시글 제목입니다"[:30] in message  # 제목 앞 30자
+    assert result["model"] in message               # 실제 사용된 모델명
+
+
+@patch("src.processors.classifier._get_client")
+def test_invalid_sentiment_fallback_inserted_into_log_table(mock_get_client, mock_supabase):
+    """폴백 발동 시 classification_fallback_log에 insert돼야 함."""
+    mock_get_client.return_value = _mock_client(
+        '{"sentiment":"unknown_value","categories":["기타"],'
+        '"issue_summary":"테스트.","keywords":[]}'
+    )
+    classify_post({"id": 42, "title": "폴백 로그 insert 검증용 게시글 제목입니다"})
+
+    db = mock_supabase.return_value
+    db.table.assert_called_with("classification_fallback_log")
+    inserted = db.table.return_value.insert.call_args[0][0]
+    assert inserted["post_id"] == 42
+    assert inserted["fallback_type"] == "invalid_sentiment"
+    assert inserted["raw_value"] == "unknown_value"
+    assert inserted["model"]  # 실제 사용된 모델명 포함
+
+
+@patch("src.processors.classifier._get_client")
+def test_category_filtering_logs_warning(mock_get_client, caplog):
+    """유효하지 않은 카테고리가 걸러질 때도 동일하게 경고 로그를 남김."""
+    mock_get_client.return_value = _mock_client(
+        '{"sentiment":"neutral","categories":["콘텐츠","PvP","경제"],'
+        '"issue_summary":"테스트.","keywords":[]}'
+    )
+    with caplog.at_level(logging.WARNING, logger="src.processors.classifier"):
+        result = classify_post({"title": "카테고리 필터링 경고 로그 검증용 제목"})
+
+    assert result["categories"] == ["콘텐츠"]
+    warnings = [r for r in caplog.records if "카테고리" in r.getMessage()]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert "2개" in message      # 걸러진 개수
+    assert "PvP" in message and "경제" in message
+
+
+@patch("src.processors.classifier._get_client")
+def test_fallback_log_failure_does_not_break_classification(mock_get_client, mock_supabase):
+    """폴백 로그 insert 실패가 분류 결과 반환을 막으면 안 됨 (방어적 패턴)."""
+    mock_get_client.return_value = _mock_client(
+        '{"sentiment":"unknown_value","categories":["기타"],'
+        '"issue_summary":"테스트.","keywords":[]}'
+    )
+    mock_supabase.return_value.table.side_effect = Exception("DB 연결 실패")
+
+    result = classify_post({"title": "로그 실패에도 분류가 살아있는지 검증용"})
+    assert result is not None
     assert result["sentiment"] == "neutral"
 
 
@@ -139,6 +219,48 @@ def test_empty_issue_summary_becomes_none(mock_get_client):
     )
     result = classify_post({"title": "요약이 비어있는 경우 처리 테스트입니다요"})
     assert result["issue_summary"] is None
+
+
+# ── classified_by_model 저장 ──────────────────────────────────────────────────
+
+@patch("src.processors.classifier._get_client")
+def test_result_contains_model(mock_get_client):
+    """classify_post 결과에 실제 사용된 모델명이 포함돼야 함."""
+    mock_get_client.return_value = _mock_client(
+        '{"sentiment":"neutral","categories":["기타"],'
+        '"issue_summary":"테스트.","keywords":[]}'
+    )
+    result = classify_post({"title": "모델명 필드 포함 여부 검증용 게시글 제목"})
+    assert result["model"]  # 폴백 체인 중 실제 사용된 모델명
+
+
+def test_update_classification_saves_model(mock_supabase):
+    """update_classification이 result['model']을 classified_by_model 컬럼에 저장."""
+    result = {
+        "sentiment": "negative",
+        "categories": ["버그오류"],
+        "issue_summary": "테스트 요약.",
+        "keywords": ["버그"],
+        "model": "gemini-2.0-flash",
+    }
+    assert update_classification(7, result) is True
+
+    update_dict = mock_supabase.return_value.table.return_value.update.call_args[0][0]
+    assert update_dict["classified_by_model"] == "gemini-2.0-flash"
+
+
+def test_update_classification_without_model_key(mock_supabase):
+    """model 키가 없는 result(과거 형식)도 오류 없이 저장 (None으로)."""
+    result = {
+        "sentiment": "neutral",
+        "categories": ["기타"],
+        "issue_summary": None,
+        "keywords": [],
+    }
+    assert update_classification(8, result) is True
+
+    update_dict = mock_supabase.return_value.table.return_value.update.call_args[0][0]
+    assert update_dict["classified_by_model"] is None
 
 
 # ── 상수 검증 ─────────────────────────────────────────────────────────────────

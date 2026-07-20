@@ -76,3 +76,48 @@ def classify_hybrid(post: dict, use_gemini: bool) -> tuple[dict | None, bool]:
         return result, True
     # Gemini가 None(파싱 실패 등) → API는 썼으니 예산은 차감하고 키워드로 폴백
     return classify_local(post), True
+
+
+def classify_hybrid_v2_experimental(post: dict, use_gemini: bool) -> tuple[dict | None, bool]:
+    """[실험용 — 프로덕션 미배포] 키워드 신호를 질문 필터보다 먼저 보는 버전.
+
+    classify_hybrid()는 is_question()을 먼저 체크하므로, 제목에 물음표만 있어도
+    ("이거 왜 자꾸 튕기나요??" 같은 질문 형식을 빌린 불만 글까지) 부정 키워드
+    점수 계산 없이 즉시 neutral로 확정된다. 이 버전은 순서를 뒤집는다:
+
+    1. score_sentiment() 강신호(|neg-pos| >= _STRONG_SIGNAL) → 질문 여부 무관 키워드 판정
+    2. 신호가 약할 때만 is_question() → 중립
+    3. 그래도 애매하면 기존과 동일하게 Gemini 호출 또는 보류
+
+    eval_classifier.py에서 라벨링된 샘플로 classify_hybrid()와 정확도를 비교한 뒤에만
+    프로덕션 교체 여부를 결정한다. 기존 classify_hybrid()는 수정하지 않는다.
+
+    시그니처·반환 형식은 classify_hybrid()와 동일.
+    """
+    title = (post.get("title") or "").strip()
+    body = (post.get("body") or "").strip()
+    text = f"{title} {body}".strip()
+
+    # 1. 키워드 강신호 → 질문 형식이어도 키워드 판정 (무료)
+    neg, pos = score_sentiment(post)
+    if abs(neg - pos) >= _STRONG_SIGNAL:
+        return classify_local(post), False
+
+    # 2. 신호 약함 + 질문·정보 요청 → 중립 (무료)
+    if is_question(title):
+        return {
+            "sentiment": "neutral",
+            "categories": _categorize(text),
+            "issue_summary": title or None,
+            "keywords": _extract_keywords(text),
+            "model": "question-filter-v2",
+        }, False
+
+    # 3. 애매한 의견글 — 기존과 동일
+    if not use_gemini:
+        return None, False
+
+    result = classify_post(post)  # QuotaExhausted는 호출자에게 전파
+    if result is not None:
+        return result, True
+    return classify_local(post), True

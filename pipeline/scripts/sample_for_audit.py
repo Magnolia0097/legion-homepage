@@ -57,12 +57,22 @@ def _fetch_ids(db, sentiment: str) -> list[int]:
 
 
 def _fetch_rows(db, ids: list[int]) -> list[dict]:
-    rows = (
-        db.table("voice_raw_posts")
-        .select("id, title, body, sentiment, categories, issue_summary, url, classified_by_model")
-        .in_("id", ids)
-        .execute()
-    ).data or []
+    try:
+        rows = (
+            db.table("voice_raw_posts")
+            .select("id, title, body, sentiment, categories, issue_summary, url, classified_by_model")
+            .in_("id", ids)
+            .execute()
+        ).data or []
+    except Exception:
+        # 002 마이그레이션 미적용 DB — classified_by_model 컬럼 없이 재시도
+        logger.warning("classified_by_model 컬럼 조회 실패 (002 마이그레이션 미적용?) — 컬럼 제외하고 진행")
+        rows = (
+            db.table("voice_raw_posts")
+            .select("id, title, body, sentiment, categories, issue_summary, url")
+            .in_("id", ids)
+            .execute()
+        ).data or []
     return rows
 
 

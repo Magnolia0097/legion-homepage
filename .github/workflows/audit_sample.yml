@@ -2,10 +2,15 @@ name: Audit Sample Extraction
 
 # 분류 품질 측정용 감사 샘플 추출 (측정 가이드 Phase 2).
 # sentiment별 50건씩 랜덤 샘플링한 CSV를 audit-data 브랜치에 커밋한다.
-# 수동 실행 전용 — 라벨링 라운드가 필요할 때마다 돌린다.
+# 실행 방법 (라벨링 라운드가 필요할 때마다):
+#   1. Actions 탭에서 수동 실행 (workflow_dispatch), 또는
+#   2. run-audit-sample 브랜치에 푸시 (API 토큰에 actions:write가 없을 때의 우회로)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - run-audit-sample
 
 permissions:
   contents: write

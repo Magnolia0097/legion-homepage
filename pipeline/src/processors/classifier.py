@@ -115,6 +115,25 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
 
+def _log_fallback(post: dict, fallback_type: str, raw_value: str, model: str) -> None:
+    """폴백 발생을 classification_fallback_log 테이블에 기록.
+
+    측정 목적의 부가 로깅이므로 실패해도 분류 파이프라인은 계속 진행한다
+    (update_classification과 동일한 방어적 패턴).
+    """
+    try:
+        db = get_supabase(use_service_role=True)
+        db.table("classification_fallback_log").insert({
+            "post_id": post.get("id"),
+            "title_prefix": ((post.get("title") or "").strip())[:60],
+            "fallback_type": fallback_type,
+            "raw_value": raw_value,
+            "model": model,
+        }).execute()
+    except Exception as exc:
+        logger.warning("폴백 로그 저장 실패 (type=%s): %s", fallback_type, exc)
+
+
 def classify_post(post: dict) -> dict | None:
     """게시글 하나를 Gemini로 분류.
 
@@ -159,12 +178,29 @@ def classify_post(post: dict) -> dict | None:
             return None
 
         # 분류 성공
-        sentiment = result.get("sentiment", "neutral")
+        raw_sentiment = result.get("sentiment", "neutral")
+        sentiment = raw_sentiment
         if sentiment not in VALID_SENTIMENTS:
+            # neutral 폴백이 조용히 일어나면 원인 분석이 불가능 — 발동 빈도를 남긴다
+            logger.warning(
+                "유효하지 않은 sentiment %r → neutral 폴백 (title=%r, model=%s)",
+                raw_sentiment, title[:30], model,
+            )
+            _log_fallback(post, "invalid_sentiment", str(raw_sentiment), model)
             sentiment = "neutral"
 
         raw_cats = result.get("categories") or []
         categories = [c for c in raw_cats if c in VALID_CATEGORIES][:3] or ["기타"]
+        dropped_cats = [c for c in raw_cats if c not in VALID_CATEGORIES]
+        if dropped_cats:
+            logger.warning(
+                "유효하지 않은 카테고리 %d개 필터링 %r (title=%r, model=%s)",
+                len(dropped_cats), dropped_cats, title[:30], model,
+            )
+            _log_fallback(
+                post, "category_filtered",
+                json.dumps(dropped_cats, ensure_ascii=False), model,
+            )
 
         issue_summary = (result.get("issue_summary") or "").strip() or None
         keywords = [str(k) for k in (result.get("keywords") or [])][:5]
@@ -190,6 +226,7 @@ def update_classification(post_id: int, result: dict) -> bool:
             "categories": result["categories"],
             "issue_summary": result["issue_summary"],
             "keywords": result["keywords"],
+            "classified_by_model": result.get("model"),
             "classified_at": datetime.now(tz=timezone.utc).isoformat(),
         }).eq("id", post_id).execute()
         return True

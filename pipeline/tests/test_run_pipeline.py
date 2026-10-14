@@ -5,6 +5,7 @@
 - hybrid 모드(운영 기본값): 예산 차감·보류(deferred)·쿼터 소진 시 무료 경로 전환
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,8 @@ from scripts.run_pipeline import main
 from src.config import get_settings
 from src.processors.classifier import QuotaExhausted
 
+
+_KST = timezone(timedelta(hours=9))
 
 # ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
@@ -43,11 +46,15 @@ def settings(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _no_aggregation():
-    """집계 단계는 test_aggregators.py에서 따로 검증 — 여기선 DB 호출만 차단."""
+def recorded():
+    """집계·실행 기록·품질 체크·요약의 DB/파일 접근 차단. finish_run에 넘어간 기록을 돌려준다."""
     with patch("scripts.run_pipeline.refresh_hourly_stats", return_value=0), \
-         patch("scripts.run_pipeline.refresh_daily_stats", return_value=0):
-        yield
+         patch("scripts.run_pipeline.refresh_daily_stats", return_value=0), \
+         patch("scripts.run_pipeline.start_run"), \
+         patch("scripts.run_pipeline.finish_run") as finish, \
+         patch("scripts.run_pipeline.run_checks", return_value=[]) as checks, \
+         patch("scripts.run_pipeline.publish"):
+        yield {"finish": finish, "checks": checks}
 
 
 # ── gemini 모드: 정상 흐름 ────────────────────────────────────────────────────
@@ -260,3 +267,58 @@ def test_hybrid_quota_exhausted_switches_to_free_path(
     assert use_gemini_flags == [True, False, False]
     assert mock_update.call_count == 2
     mock_sleep.assert_not_called()
+
+
+# ── 실행 기록·종료 코드 ───────────────────────────────────────────────────────
+
+@patch("scripts.run_pipeline.time.sleep")
+@patch("scripts.run_pipeline.update_classification", side_effect=[True, False])
+@patch("scripts.run_pipeline.classify_hybrid")
+@patch("scripts.run_pipeline.mark_as_spam")
+@patch("scripts.run_pipeline.is_spam", side_effect=[True, False, False, False])
+@patch("scripts.run_pipeline.fetch_unclassified")
+@patch("scripts.run_pipeline.save_posts", return_value=3)
+@patch("scripts.run_pipeline.collect_inven_aion2")
+def test_run_record_counts(
+    mock_collect, mock_save, mock_fetch, mock_is_spam,
+    mock_mark_spam, mock_hybrid, mock_update, mock_sleep, settings, recorded,
+):
+    """pipeline_runs에 남는 건수가 실제 처리 결과와 일치 — DB 저장 실패는 분류 성공으로 세지 않음."""
+    settings(classifier_mode="hybrid")
+    mock_collect.return_value = [{"posted_at": datetime.now(tz=_KST).isoformat()}] * 4
+    mock_fetch.return_value = [_make_post(i) for i in range(1, 5)]
+    mock_hybrid.side_effect = [(_RESULT, False), (_RESULT, False), (None, False)]
+
+    assert main() == 0
+
+    run = recorded["finish"].call_args.args[0]
+    assert (run.collected_count, run.new_count) == (4, 3)
+    assert (run.unclassified_count, run.spam_count) == (4, 1)
+    assert (run.classified_count, run.failed_count, run.deferred_count) == (1, 1, 1)
+    assert run.status == "success" and run.finished_at is not None
+
+
+@patch("scripts.run_pipeline.fetch_unclassified", side_effect=RuntimeError("DB down"))
+@patch("scripts.run_pipeline.save_posts", return_value=0)
+@patch("scripts.run_pipeline.collect_inven_aion2", return_value=[])
+def test_unexpected_crash_is_recorded_and_exits_1(mock_collect, mock_save, mock_fetch, settings, recorded):
+    settings()
+    assert main() == 1
+    run = recorded["finish"].call_args.args[0]
+    assert run.status == "failed"
+    assert "DB down" in run.error_message
+    recorded["checks"].assert_called_once()  # 중단돼도 품질 체크·요약은 실행
+
+
+@patch("scripts.run_pipeline.fetch_unclassified", return_value=[])
+@patch("scripts.run_pipeline.save_posts", return_value=0)
+@patch("scripts.run_pipeline.collect_inven_aion2", return_value=[])
+def test_strict_mode_fails_on_critical_finding(mock_collect, mock_save, mock_fetch,
+                                               settings, recorded, monkeypatch):
+    from src.quality import Finding
+
+    settings()
+    recorded["checks"].return_value = [Finding("critical", "llm_auth", "인증 오류")]
+    assert main() == 0  # 기본: 경고만
+    monkeypatch.setenv("PIPELINE_STRICT", "1")
+    assert main() == 2  # strict: 치명 경고면 실패 → Actions 실패 알림

@@ -5,7 +5,9 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+from google.genai import errors as genai_errors
 
+from src.processors import classifier as clf
 from src.processors.classifier import (
     VALID_CATEGORIES,
     VALID_SENTIMENTS,
@@ -272,3 +274,72 @@ def test_valid_sentiments_set():
 def test_valid_categories_list():
     assert len(VALID_CATEGORIES) == 6
     assert "기타" in VALID_CATEGORIES
+
+
+# ── 재시도·오류 분류·호출 지표 ────────────────────────────────────────────────
+
+_OK_JSON = ('{"sentiment":"negative","categories":["버그오류"],'
+            '"issue_summary":"요약.","keywords":["버그"]}')
+
+
+def _api_error(cls, code: int, status: str, message: str):
+    return cls(code, {"error": {"code": code, "status": status, "message": message}})
+
+
+@pytest.fixture
+def fresh_llm_state(monkeypatch):
+    monkeypatch.setattr(clf, "_dead_models", set())
+    monkeypatch.setattr("src.retry.time.sleep", lambda _s: None)
+    clf.reset_llm_stats()
+    return clf.llm_stats
+
+
+@patch("src.processors.classifier._get_client")
+def test_transient_server_error_is_retried(mock_get_client, fresh_llm_state):
+    client = _mock_client(_OK_JSON)
+    ok = client.models.generate_content.return_value
+    client.models.generate_content.side_effect = [
+        _api_error(genai_errors.ServerError, 503, "UNAVAILABLE", "overloaded"), ok,
+    ]
+    mock_get_client.return_value = client
+
+    result = classify_post({"title": "버그 언제 고쳐요 진짜 너무하네요"})
+
+    assert result["sentiment"] == "negative"
+    assert fresh_llm_state.requests == 2 and fresh_llm_state.retries == 1
+    assert fresh_llm_state.ok == 1 and fresh_llm_state.error_total == 0
+
+
+@patch("src.processors.classifier._get_client")
+def test_leaked_key_403_is_not_retried_and_counted_as_auth(mock_get_client, fresh_llm_state):
+    """2026-07~09 운영 장애 재현: 유출 키 403은 재시도하지 않고 auth 오류로 집계(동작은 기존대로 None)."""
+    client = MagicMock()
+    client.models.generate_content.side_effect = _api_error(
+        genai_errors.ClientError, 403, "PERMISSION_DENIED", "Your API key was reported as leaked.")
+    mock_get_client.return_value = client
+
+    assert classify_post({"title": "애매한 의견 글 제목입니다 테스트"}) is None
+    assert client.models.generate_content.call_count == 1
+    assert fresh_llm_state.errors == {"auth": 1}
+
+
+@patch("src.processors.classifier._get_client")
+def test_quota_exhausted_moves_through_chain_then_raises(mock_get_client, fresh_llm_state):
+    client = MagicMock()
+    client.models.generate_content.side_effect = _api_error(
+        genai_errors.ClientError, 429, "RESOURCE_EXHAUSTED", "quota")
+    mock_get_client.return_value = client
+
+    with pytest.raises(clf.QuotaExhausted):
+        classify_post({"title": "애매한 의견 글 제목입니다 테스트"})
+    assert fresh_llm_state.errors["quota"] == len(clf._FALLBACK_MODELS)
+    assert fresh_llm_state.retries == 0  # 쿼터 소진은 재시도 대상 아님
+
+
+@patch("src.processors.classifier._get_client")
+def test_latency_and_fallback_counters(mock_get_client, fresh_llm_state):
+    mock_get_client.return_value = _mock_client(
+        '{"sentiment":"angry","categories":["PvP"],"issue_summary":"","keywords":[]}')
+    classify_post({"id": 1, "title": "애매한 의견 글 제목입니다 테스트"})
+    assert fresh_llm_state.fallbacks == {"invalid_sentiment": 1, "category_filtered": 1}
+    assert fresh_llm_state.avg_latency_ms is not None

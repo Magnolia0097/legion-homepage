@@ -80,34 +80,53 @@ def _check_robots(target_url: str) -> bool:
     return allowed
 
 
-def _parse_posted_at(raw: str) -> datetime:
+def _parse_posted_at(raw: str, now: datetime | None = None) -> datetime:
     """인벤 날짜 문자열 → timezone-aware datetime (KST).
 
-    인벤 표시 형식 (추정):                  # 실제 HTML 확인 후 조정 필요
-    - '2026.04.21 12:30'  (오래된 글, 연도 포함)
-    - '04.21 12:30'       (올해 글, 연도 생략)
-    - '12:30'             (오늘 글, 날짜 생략)
+    목록 페이지에서 확인된 표기:
+    - '12:30'             오늘 글 (시각만)
+    - '07-19'             며칠 지난 글 (월-일만, 시각 없음 → 00:00으로 저장)
+    - '04.21 12:30'       월.일 시각
+    - '2026.04.21 12:30'  연도 포함
+
+    연도가 없는 표기는 올해로 가정하되, 그 결과가 미래면 작년 글로 본다
+    (1월 1일에 12-31 글을 보는 경우).
+
+    Args:
+        now: 기준 시각(테스트용). 기본은 현재 KST.
     """
     raw = raw.strip()
-    today = datetime.now(tz=KST).date()
+    now = now or datetime.now(tz=KST)
+    today = now.date()
 
-    # YYYY.MM.DD HH:MM                      # 실제 HTML 확인 후 조정 필요
-    m = re.match(r"(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})", raw)
+    def _without_future(dt: datetime) -> datetime:
+        # 연도 생략 표기가 미래로 해석되면 작년 글
+        return dt.replace(year=dt.year - 1) if dt.date() > today else dt
+
+    # YYYY.MM.DD HH:MM / YYYY-MM-DD HH:MM
+    m = re.match(r"(\d{4})[.-](\d{2})[.-](\d{2})\s+(\d{2}):(\d{2})", raw)
     if m:
         return datetime(
             int(m.group(1)), int(m.group(2)), int(m.group(3)),
             int(m.group(4)), int(m.group(5)),
             tzinfo=KST,
         )
-    # MM.DD HH:MM                            # 실제 HTML 확인 후 조정 필요
+    # MM.DD HH:MM
     m = re.match(r"(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})", raw)
     if m:
-        return datetime(
+        return _without_future(datetime(
             today.year, int(m.group(1)), int(m.group(2)),
             int(m.group(3)), int(m.group(4)),
             tzinfo=KST,
-        )
-    # HH:MM (오늘)                           # 실제 HTML 확인 후 조정 필요
+        ))
+    # MM-DD (시각 없음) — 2026-07 운영 로그에서 파싱 실패로 확인된 표기.
+    # 예전엔 현재 시각으로 대체돼 지난 글이 "오늘 글"로 저장되고 오늘 집계를 부풀렸다.
+    m = re.match(r"(\d{2})-(\d{2})$", raw)
+    if m:
+        return _without_future(datetime(
+            today.year, int(m.group(1)), int(m.group(2)), tzinfo=KST,
+        ))
+    # HH:MM (오늘)
     m = re.match(r"(\d{2}):(\d{2})$", raw)
     if m:
         return datetime(
@@ -117,7 +136,7 @@ def _parse_posted_at(raw: str) -> datetime:
         )
 
     logger.warning(f"날짜 파싱 실패, 현재 시각으로 대체: '{raw}'")
-    return datetime.now(tz=KST)
+    return now
 
 
 def parse_post_list(html: str, board_id: int) -> list[dict]:

@@ -31,3 +31,21 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > supabase/types.
 |------|------|
 | `001_voice_tracker.sql` | voice_raw_posts · voice_hourly_stats · voice_daily_stats 테이블 + RLS |
 | `002_classification_audit.sql` | classified_by_model 컬럼 + classification_fallback_log 테이블 (분류 품질 측정용) |
+| `003_sync_board_name.sql` | ⚠ 운영 미적용 — 수동으로 추가돼 있던 board_name 컬럼을 마이그레이션에 기록 (스키마 드리프트 정리, 운영에선 no-op 예상) |
+| `004_restrict_anon_access.sql` | ⚠ 운영 미적용 — anon 키 권한 최소화: 쓰기 권한 회수, voice_raw_posts 컬럼 단위 읽기(author·body 비공개), fallback_log 비공개 |
+
+> ⚠ 표시는 파일만 준비된 상태. 운영 적용은 승인 후 SQL Editor에서 실행하고, 적용 전·후로
+> `supabase/checks/rls_audit.sql`을 돌려 결과를 비교한다.
+
+## 검증 (로컬·CI)
+
+`supabase/tests/run.sh`가 빈 Postgres에 Supabase 기본 권한(anon·authenticated·service_role)을
+흉내 낸 뒤 마이그레이션을 순서대로 적용하고, `10_assert_*.sql`로 권한을 검증한다.
+CI(`.github/workflows/supabase-migrations.yml`)에서 `supabase/**` 변경 시 자동 실행된다.
+
+```bash
+PGHOST=localhost PGUSER=postgres PGPASSWORD=... ./supabase/tests/run.sh   # 일회용 DB 전용
+```
+
+검증 항목: 대시보드 조회(컬럼·필터)는 허용 / author·body·fallback_log 조회 거부 /
+anon·authenticated의 INSERT·UPDATE·DELETE·TRUNCATE 거부 / service_role 읽기·쓰기 유지

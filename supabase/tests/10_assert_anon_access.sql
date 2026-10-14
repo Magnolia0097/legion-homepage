@@ -54,6 +54,8 @@ SELECT rls_test.expect_denied($q$ INSERT INTO voice_hourly_stats (hour) VALUES (
 SELECT rls_test.expect_denied($q$ DELETE FROM voice_daily_stats $q$);
 SELECT rls_test.expect_denied($q$
     INSERT INTO classification_fallback_log (fallback_type) VALUES ('x') $q$);
+SELECT rls_test.expect_denied($q$ SELECT * FROM pipeline_runs $q$);
+SELECT rls_test.expect_denied($q$ INSERT INTO pipeline_runs (run_id) VALUES ('x') $q$);
 RESET ROLE;
 
 -- authenticated(Supabase Auth 로그인 사용자)도 anon과 동일해야 함 — 이 서비스는 Supabase Auth 미사용
@@ -69,6 +71,11 @@ SELECT rls_test.expect_ok($q$
     INSERT INTO classification_fallback_log (fallback_type, raw_value) VALUES ('invalid_sentiment', 'x') $q$);
 SELECT rls_test.expect_ok($q$
     UPDATE voice_raw_posts SET sentiment = 'negative', classified_by_model = 'local-keyword' $q$);
+SELECT rls_test.expect_ok($q$
+    INSERT INTO pipeline_runs (run_id, trigger) VALUES ('gh-1-1', 'schedule') $q$);
+SELECT rls_test.expect_ok($q$
+    UPDATE pipeline_runs SET status = 'success', finished_at = now(), llm_errors = '{"auth": 3}'
+    WHERE run_id = 'gh-1-1' $q$);
 RESET ROLE;
 
 DROP SCHEMA rls_test CASCADE;

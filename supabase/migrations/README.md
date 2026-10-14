@@ -33,6 +33,7 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > supabase/types.
 | `002_classification_audit.sql` | classified_by_model 컬럼 + classification_fallback_log 테이블 (분류 품질 측정용) |
 | `003_sync_board_name.sql` | ⚠ 운영 미적용 — 수동으로 추가돼 있던 board_name 컬럼을 마이그레이션에 기록 (스키마 드리프트 정리, 운영에선 no-op 예상) |
 | `004_restrict_anon_access.sql` | ⚠ 운영 미적용 — anon 키 권한 최소화: 쓰기 권한 회수, voice_raw_posts 컬럼 단위 읽기(author·body 비공개), fallback_log 비공개 |
+| `005_pipeline_runs.sql` | ⚠ 운영 미적용 — 실행 로그 테이블(실행당 1행: 상태·건수·LLM 오류·품질 경고). 미적용이어도 파이프라인은 경고만 남기고 동작 |
 
 > ⚠ 표시는 파일만 준비된 상태. 운영 적용은 승인 후 SQL Editor에서 실행하고, 적용 전·후로
 > `supabase/checks/rls_audit.sql`을 돌려 결과를 비교한다.
@@ -47,5 +48,8 @@ CI(`.github/workflows/supabase-migrations.yml`)에서 `supabase/**` 변경 시 �
 PGHOST=localhost PGUSER=postgres PGPASSWORD=... ./supabase/tests/run.sh   # 일회용 DB 전용
 ```
 
-검증 항목: 대시보드 조회(컬럼·필터)는 허용 / author·body·fallback_log 조회 거부 /
-anon·authenticated의 INSERT·UPDATE·DELETE·TRUNCATE 거부 / service_role 읽기·쓰기 유지
+검증 항목
+- `10_assert_anon_access.sql`: 대시보드 조회(컬럼·필터)는 허용 / author·body·fallback_log·pipeline_runs 조회 거부 /
+  anon·authenticated의 INSERT·UPDATE·DELETE·TRUNCATE 거부 / service_role 읽기·쓰기 유지
+- `20_assert_idempotency.sql`: 같은 배치를 두 번 넣어도 행 수 유지·기존 분류 결과 보존(ON CONFLICT DO NOTHING),
+  집계 upsert는 시간대당 1행

@@ -1,0 +1,40 @@
+name: Pipeline CI
+
+# 파이프라인 코드 변경 시 lint + 단위 테스트 (외부 API·DB 호출은 전부 mock).
+on:
+  push:
+    paths:
+      - 'pipeline/**'
+      - '.github/workflows/pipeline-ci.yml'
+  pull_request:
+    paths:
+      - 'pipeline/**'
+      - '.github/workflows/pipeline-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (lockfile 고정)
+        run: uv sync --locked
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Unit tests
+        run: uv run pytest -q

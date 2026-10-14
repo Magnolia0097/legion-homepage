@@ -1,6 +1,8 @@
 node_modules/
 .env.local
 .env
+.env.*
+!.env.example
 .wrangler/
 out/
 .next/
@@ -14,3 +16,7 @@ pipeline/.env
 pipeline/.venv/
 pipeline/logs/
 pipeline/backups/
+
+# 분류 평가 — 게시글 원문·작성자 정보는 커밋 금지 (post_id + 라벨만 커밋)
+pipeline/eval/.cache/
+pipeline/audit_sample_*.csv

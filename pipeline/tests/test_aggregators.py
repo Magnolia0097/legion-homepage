@@ -1,9 +1,7 @@
 """집계 모듈 단위 테스트 — Supabase mock 사용."""
 
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.aggregators.hourly import _aggregate_posts, refresh_daily_stats, refresh_hourly_stats
 

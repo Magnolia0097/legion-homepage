@@ -8,13 +8,18 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import httpx
 from google import genai
 from google.genai import types
 
 from ..config import get_settings
 from ..db import get_supabase
+from ..retry import call_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,55 @@ VALID_CATEGORIES: list[str] = [
 
 class QuotaExhausted(Exception):
     """Gemini API 일일/분당 쿼터 소진 — 해당 배치 분류를 즉시 중단해야 함."""
+
+
+# ── 호출 지표 (실행 요약·pipeline_runs·평가 리포트용) ─────────────────────────
+
+@dataclass
+class LLMStats:
+    """실행 1회의 Gemini 호출 지표. 분류 동작에는 영향을 주지 않는 관측 전용."""
+
+    requests: int = 0            # 실제 HTTP 요청 수 (재시도·폴백 모델 포함)
+    retries: int = 0             # 일시적 오류로 같은 모델 재시도한 횟수
+    ok: int = 0                  # 응답 JSON 파싱까지 성공
+    latency_ms_total: float = 0  # 성공 요청의 지연 합계
+    errors: Counter = field(default_factory=Counter)     # auth / quota / not_found / transient / parse / other
+    fallbacks: Counter = field(default_factory=Counter)  # invalid_sentiment / category_filtered
+
+    @property
+    def error_total(self) -> int:
+        return sum(self.errors.values())
+
+    @property
+    def avg_latency_ms(self) -> float | None:
+        return self.latency_ms_total / self.ok if self.ok else None
+
+
+llm_stats = LLMStats()
+
+
+def reset_llm_stats() -> None:
+    """실행 시작 시 호출 — 다른 모듈이 가진 참조가 유지되도록 제자리 초기화."""
+    llm_stats.__init__()
+
+
+_TRANSIENT_CODES = {408, 500, 502, 503, 504}
+
+
+def _error_kind(exc: BaseException) -> str:
+    """Gemini 호출 예외 분류. 404·429 판정은 기존 문자열 기준을 그대로 유지한다."""
+    text = str(exc)
+    code = getattr(exc, "code", None)
+    if "404" in text or "NOT_FOUND" in text:
+        return "not_found"
+    if "429" in text or "RESOURCE_EXHAUSTED" in text:
+        return "quota"
+    if code in (401, 403) or "PERMISSION_DENIED" in text or "UNAUTHENTICATED" in text:
+        return "auth"  # 예: 'Your API key was reported as leaked' (2026-07~)
+    if (code in _TRANSIENT_CODES or isinstance(exc, (httpx.TimeoutException, httpx.TransportError))
+            or "UNAVAILABLE" in text or "DEADLINE_EXCEEDED" in text):
+        return "transient"
+    return "other"
 
 
 # 분류 모델 폴백 체인 — 앞에서부터 시도, 404(퇴역)·429(쿼터소진)면 다음 모델로.
@@ -110,9 +164,45 @@ _PROMPT_TEMPLATE = """\
 """
 
 
+# 응답이 오지 않을 때 무한 대기하지 않도록 요청 타임아웃 (google-genai 기본값은 제한 없음)
+_HTTP_TIMEOUT_MS = 30_000
+
+
 def _get_client() -> genai.Client:
     settings = get_settings()
-    return genai.Client(api_key=settings.gemini_api_key)
+    return genai.Client(
+        api_key=settings.gemini_api_key,
+        http_options=types.HttpOptions(timeout=_HTTP_TIMEOUT_MS),
+    )
+
+
+def _generate(client: genai.Client, model: str, prompt: str) -> str:
+    """generate_content 1건 — 일시적 오류(5xx·타임아웃·연결)만 백오프 재시도.
+
+    인증 실패·쿼터 소진·404는 재시도해도 같으므로 즉시 올려 보내 기존 폴백 로직이 처리한다.
+    """
+
+    def _once() -> str:
+        llm_stats.requests += 1
+        started = time.perf_counter()
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3,
+            ),
+        )
+        llm_stats.latency_ms_total += (time.perf_counter() - started) * 1000
+        return response.text
+
+    def _count_retry(*_args) -> None:
+        llm_stats.retries += 1
+
+    return call_with_retry(
+        _once, is_retryable=lambda e: _error_kind(e) == "transient",
+        attempts=3, base=2.0, cap=20.0, on_retry=_count_retry,
+    )
 
 
 def _log_fallback(post: dict, fallback_type: str, raw_value: str, model: str) -> None:
@@ -153,30 +243,25 @@ def classify_post(post: dict) -> dict | None:
 
     for model in chain:
         try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3,
-                ),
-            )
-            result = json.loads(response.text)
+            result = json.loads(_generate(client, model, prompt))
         except Exception as exc:
             exc_str = str(exc)
+            kind = "parse" if isinstance(exc, json.JSONDecodeError) else _error_kind(exc)
+            llm_stats.errors[kind] += 1
             # 404=모델 퇴역/미지원, limit:0 또는 429=쿼터소진 → 이번 실행 동안 dead 처리 후 다음 모델
-            if "404" in exc_str or "NOT_FOUND" in exc_str:
+            if kind == "not_found":
                 logger.warning("모델 %s 사용 불가(404) — 폴백", model)
                 _dead_models.add(model)
                 continue
-            if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+            if kind == "quota":
                 logger.warning("모델 %s 쿼터 소진 — 폴백", model)
                 _dead_models.add(model)
                 last_quota_exc = exc_str[:200]
                 continue
-            logger.warning("Gemini 분류 실패 (title=%r, model=%s): %s", title[:30], model, exc)
+            logger.warning("Gemini 분류 실패 (title=%r, model=%s, kind=%s): %s", title[:30], model, kind, exc)
             return None
 
+        llm_stats.ok += 1
         # 분류 성공
         raw_sentiment = result.get("sentiment", "neutral")
         sentiment = raw_sentiment
@@ -187,6 +272,7 @@ def classify_post(post: dict) -> dict | None:
                 raw_sentiment, title[:30], model,
             )
             _log_fallback(post, "invalid_sentiment", str(raw_sentiment), model)
+            llm_stats.fallbacks["invalid_sentiment"] += 1
             sentiment = "neutral"
 
         raw_cats = result.get("categories") or []
@@ -201,6 +287,7 @@ def classify_post(post: dict) -> dict | None:
                 post, "category_filtered",
                 json.dumps(dropped_cats, ensure_ascii=False), model,
             )
+            llm_stats.fallbacks["category_filtered"] += 1
 
         issue_summary = (result.get("issue_summary") or "").strip() or None
         keywords = [str(k) for k in (result.get("keywords") or [])][:5]

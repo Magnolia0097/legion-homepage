@@ -19,7 +19,7 @@ Gemini 키는 Google이 유출 키로 탐지해 차단했고, 그 결과 파이�
 | 05-01 21:50 | Claude Code가 이미 추적 중이던 `.env`의 URL을 수정해 커밋 (추적 중인 파일엔 `.gitignore` 무효) | `632a1cc` |
 | 05-01 | 점검 중 발견. "면접 데모 직전 일괄 처리"로 재발급 보류 결정 | 기존 기록 |
 | 05-07 13:30 | `git rm --cached`로 추적 해제 — 최신 트리에서는 사라짐, **히스토리에는 잔존** | `5fe3b99` |
-| ~07-21 이전 | Google이 Gemini 키를 유출 키로 차단: `403 PERMISSION_DENIED "Your API key was reported as leaked"` (정확한 시작일은 로그 보존 기간 밖이라 불명) | Actions 로그 |
+| ~07-21 이전 | Google이 Gemini 키를 유출 키로 차단: `403 PERMISSION_DENIED "Your API key was reported as leaked"` (정확한 시작일은 로그 보존 기간 밖이라 불명. 공개 레포의 Google API 키는 GitHub secret scanning이 Google에 통보하므로 그 경로로 추정) | Actions 로그 |
 | 07-21 ~ 09-19 | 확인 가능한 모든 실행에서 Gemini 403 → 애매한 글은 키워드 분류로 폴백되거나 무기한 보류(실행당 ~960건) | Actions 로그 |
 | 09-19 | 마지막 파이프라인 실행. 이후 스케줄 미실행 (공개 레포 60일 무활동 시 GitHub가 cron 자동 비활성화 — 마지막 커밋 07-21) | Actions 실행 이력 |
 | 10-14 | 전체 히스토리 스캔, 본 문서 재작성, CI·pre-commit 시크릿 스캔 도입 | 이 브랜치 |
@@ -36,7 +36,7 @@ gitleaks 8.24.3 `gitleaks git --log-opts=--all` (원격 전체 브랜치, 병합
 |---|---|---|---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` (JWT, role=service_role, 만료 2036-04) | `pipeline/.env:10` · cc04e0c, 632a1cc | **즉시 재발급** | 최고 — RLS를 우회해 전 테이블 읽기·수정·삭제. 만료가 10년 뒤라 재발급 전까지 사실상 영구 유효 | 유효 추정 (GitHub Secrets에 같은 키로 운영 중) | ☐ |
 | `GEMINI_API_KEY` | `pipeline/.env:5` · cc04e0c, 632a1cc | **즉시 재발급** | 과금·쿼터 도용 → Google이 이미 차단해 비용 위험은 소멸, 대신 **운영 장애**(LLM 분류 중단) | Google에 의해 차단됨 | ☐ |
-| `SUPABASE_ANON_KEY` (JWT, role=anon) | `pipeline/.env:9` · cc04e0c, 632a1cc | 공개 전제 | 낮음 — 원래 브라우저 번들에 들어가는 키. 권한은 RLS·GRANT가 결정(→ `004_restrict_anon_access.sql`) | 유효 | ☐ (service_role과 같은 JWT secret으로 서명돼 함께 교체됨) |
+| `SUPABASE_ANON_KEY` (JWT, role=anon) | `pipeline/.env:9` · cc04e0c, 632a1cc | 공개 전제 | 낮음 — 원래 브라우저 번들에 들어가는 키. 권한은 RLS·GRANT가 결정(→ `004_restrict_anon_access.sql`) | 유효 | ☐ (legacy 키 비활성화·legacy JWT secret 폐기로 service_role과 함께 무효화) |
 | `SUPABASE_URL` (프로젝트 ref) | `pipeline/.env:8` · 632a1cc | 공개 정보 | 없음 | — | 해당 없음 |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | `frontend/.env.production:3` · 31d4a1e (현재도 추적) | 공개 전제 | 낮음 — Firebase 웹 키는 식별자 역할. 남용 방지는 키 제한으로 | 유효 | 해당 없음 (리퍼러 제한 권장) |
 
@@ -48,33 +48,38 @@ gitleaks 8.24.3 `gitleaks git --log-opts=--all` (원격 전체 브랜치, 병합
 
 ## 키 재발급 체크리스트 (직접 수행)
 
-순서가 중요하다: **새 키 발급 → 소비처 갱신 → 동작 확인 → 옛 키 폐기.** Supabase 대시보드 메뉴 이름은
-버전에 따라 다를 수 있다.
+순서가 중요하다: **새 키 발급 → 소비처 갱신 → 동작 확인 → 옛 키 폐기.** 메뉴 경로는 2026-10-15에
+각 서비스 공식 문서와 콘솔 소스로 확인했다. 화면 문구는 조금 다를 수 있다.
 
-1. **Gemini** — [Google AI Studio](https://aistudio.google.com/) → API keys
-   - [ ] 새 키 생성, Google Cloud 콘솔에서 *API restrictions*를 Generative Language API로 제한
-   - [ ] 기존(차단된) 키 삭제
-2. **Supabase** — 둘 중 하나
-   - (권장) **새 API 키 체계로 전환**: Project Settings → API Keys에서 secret 키(`sb_secret_…`)·publishable 키 생성
-     → 아래 3~5단계로 교체 → 동작 확인 후 **legacy JWT 키(anon·service_role) 비활성화**.
-     옛 키를 끄는 시점을 직접 고를 수 있어 무중단 교체가 가능하다.
-   - (대안) **legacy JWT secret 회전**: anon·service_role이 동시에 바뀌고 옛 키는 즉시 무효 → 3~5단계를 바로 이어서 수행.
-     Supabase Auth를 쓰지 않으므로 세션 무효화 영향은 없다.
-   - [ ] 완료
+1. **Gemini** — [Google AI Studio](https://aistudio.google.com/api-keys) → Dashboard → API Keys
+   - [ ] **Create API key**, 프로젝트는 **기존 프로젝트**를 선택. 2026-09-18부터 `gemini-2.5-flash-lite`는
+     이전에 쓰던 사용자만 쓸 수 있어 새 프로젝트에서는 404가 날 수 있다. 새 키는 `AQ.` 형식이고 기본으로 Gemini API에만 제한된다.
+   - [ ] curl로 `generateContent` 한 번 호출해 동작 확인 (404·401이면 모델 교체 검토 — 분류 로직 변경이라 승인 필요)
+   - [ ] 옛 키 삭제: Google Cloud Console → APIs & Services → Credentials
+2. **Supabase** — legacy JWT secret을 직접 바꾸는 방식은 더 이상 제공되지 않는다
+   ([공식 문서](https://supabase.com/docs/guides/troubleshooting/rotating-anon-service-and-jwt-secrets-1Jq6yd)).
+   새 키 체계로 옮긴 뒤 legacy 키를 끄고, legacy secret을 폐기해야 유출된 JWT가 실제로 무효가 된다.
+   - [ ] 무료 플랜이 일시정지(paused) 상태면 먼저 복원
+   - [ ] Project Settings → API Keys → *Publishable and secret API keys* → **Create new API keys**
+   - [ ] (3~5번 소비처 갱신·6번 확인 후) *Legacy anon, service_role API keys* → **Disable JWT-based API keys**
+   - [ ] Project Settings → JWT Keys → *JWT Signing Keys* → **Migrate JWT secret** → **Rotate keys** →
+     legacy 행 **Revoke key**. 끄기만 하면 apikey 헤더 사용만 막히고 유출된 키는 "유효한 JWT"로 남는다.
 3. **GitHub Actions secrets** (Settings → Secrets and variables → Actions)
-   - [ ] `GEMINI_API_KEY` · [ ] `SUPABASE_SERVICE_ROLE_KEY` · [ ] `SUPABASE_ANON_KEY` 갱신 (`SUPABASE_URL`은 그대로)
-4. **Cloudflare Pages** 환경변수 (anon 키가 바뀐 경우)
-   - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY` 갱신 → 재배포 → `/reactions/` 데이터 표시 확인
+   - [ ] `GEMINI_API_KEY`(`AQ.…`) · [ ] `SUPABASE_SERVICE_ROLE_KEY`(`sb_secret_…`) · [ ] `SUPABASE_ANON_KEY`(`sb_publishable_…`)
+     — 이름은 그대로, `SUPABASE_URL`도 그대로. supabase-py 2.29·supabase-js 2.108은 새 키를 그대로 받는다(코드 변경 없음).
+4. **Cloudflare Pages** — `NEXT_PUBLIC_SUPABASE_ANON_KEY`는 레포의 `.env.production`에 없고 빌드 때 번들에 박힌다
+   - [ ] Git 연동이면 대시보드 Variables and Secrets(Production) 수정 후 **Retry deployment**,
+     직접 업로드면 `frontend/.env.local` 수정 후 `npm run deploy` → `/reactions/` 표시 확인
 5. **로컬** `pipeline/.env`
-   - [ ] 새 값으로 갱신 (`cp .env.example .env` 형식 참고)
-6. **동작 확인**
-   - [ ] Actions → *Voice Tracker Pipeline* → **Enable workflow**(9/19 이후 비활성) → *Run workflow*
-   - [ ] 로그에 `403` 없음, `분류 성공 … 그중 Gemini N건`에서 N>0 확인
-7. **옛 키 폐기** (2번 권장 경로를 택한 경우) — [ ] legacy 키 비활성화 후 6번 재확인
-8. **선택**
-   - [ ] GitHub → Settings → Code security → **Secret scanning·Push protection** 활성화
-     (공개 레포 무료. 웹 UI 커밋까지 막아 이번 사고의 최초 경로를 차단한다)
-   - [ ] Firebase 웹 키에 HTTP 리퍼러 제한(`nania-ssimdang.pages.dev/*`, `localhost`) 설정
+   - [ ] 새 값으로 갱신 (`.env.example` 형식 참고)
+6. **동작 확인 → 옛 키 폐기**
+   - [ ] Actions → *Voice Tracker Pipeline* → **Enable workflow**(9/19 이후 비활성, 꺼진 워크플로는 수동 실행도 안 됨) → **Run workflow**
+   - [ ] 로그에 `403` 없음, LLM 성공 1건 이상 확인 → 2번의 Disable·Revoke 진행
+   - [ ] 옛 service_role 키로 REST를 호출해 `401`이 나오는지 확인
+7. **선택**
+   - [ ] GitHub Secret scanning·Push protection 확인 (단, 아래 '재발 방지'의 한계 참고)
+   - [ ] Firebase 웹 키의 API restrictions에 Generative Language API가 없는지 확인
+     (웹사이트 리퍼러 제한은 Firebase SDK를 12.15 이상으로 올린 뒤에만 — 12.9는 Referer를 보내지 않아 로그인이 막힌다)
    - [ ] 히스토리 정리 여부 결정 (아래)
 
 ## 원인
@@ -83,7 +88,7 @@ gitleaks 8.24.3 `gitleaks git --log-opts=--all` (원격 전체 브랜치, 병합
 |---|---|
 | 직접 | GitHub 웹 UI로 `.env`를 생성 — `.gitignore`는 로컬 `git add`에만 적용된다 |
 | 확산 | 한 번 추적된 파일은 `.gitignore`가 무효 → 이후 수정분도 그대로 커밋됨(AI 에이전트 자동 커밋 포함) |
-| 탐지 지연 | 커밋 시점 시크릿 스캔 없음(CI·pre-commit·push protection 모두 부재), 11일 뒤 수동 점검으로 발견 |
+| 탐지 지연 | 커밋 시점 시크릿 스캔 없음(CI·pre-commit 모두 부재), 11일 뒤 수동 점검으로 발견 |
 | 대응 지연 | 재발급을 "데모 직전"으로 미룬 결정 — 그 사이 Google이 키를 차단해 운영 장애로 번졌고, 실패가 로그 경고로만 남아 2개월 넘게 인지하지 못함 |
 
 ## 재발 방지 (적용 완료)
@@ -96,7 +101,11 @@ gitleaks 8.24.3 `gitleaks git --log-opts=--all` (원격 전체 브랜치, 병합
 | anon 키 권한 최소화(쓰기 회수, 작성자·본문 컬럼 비공개) | `supabase/migrations/004_…` (적용 승인 대기) | 공개 키 남용 |
 | 실행 요약·LLM 오류율 경보 | P3 관측성 작업 | 장애의 조용한 장기화 |
 
-남은 공백: GitHub push protection(웹 UI 경로)은 저장소 설정이라 직접 켜야 한다(체크리스트 8번).
+남은 공백: GitHub push protection은 이번에 유출된 두 형식을 막지 못한다. Google API 키(`AIza…`)는 공개 레포에서
+탐지만 되고 push 차단 대상이 아니며, Supabase legacy JWT는 탐지 패턴이 없다
+([GitHub secret scanning 패턴 목록](https://github.com/github/docs/blob/c174b7fcadbafa3a060e684cd943f50d2cc52ef7/src/secret-scanning/data/pattern-docs/fpt/public-docs.yml), 2026-10 기준).
+그래서 gitleaks pre-commit·CI가 주 방어선이다. 새 Supabase secret 키(`sb_secret_…`)는 push protection 대상이고,
+공개 레포에서 발견되면 Supabase가 자동으로 폐기한다.
 
 ## 히스토리 정리(`git filter-repo`) — 선택 사항, 실행하지 않음
 

@@ -1,7 +1,7 @@
 # 사후 분석: 공개 레포에 `pipeline/.env` 커밋 (2026-04)
 
-> 상태: **대응 진행 중** — 재발 방지책 도입 완료, 키 재발급 대기.
-> 최종 갱신: 2026-10-14 · 근거: gitleaks 전체 히스토리 스캔, git 메타데이터, GitHub Actions 로그(보존 90일)
+> 상태: **대응 완료 (2026-11-08)** — 키 재발급, 레거시 키 비활성화, 레거시 JWT 서명 키 폐기까지 완료.
+> 최종 갱신: 2026-11-08 · 근거: gitleaks 전체 히스토리 스캔, git 메타데이터, GitHub Actions 로그(보존 90일)
 
 ## 요약
 
@@ -23,7 +23,8 @@ Gemini 키는 Google이 유출 키로 탐지해 차단했고, 그 결과 파이�
 | 07-21 ~ 09-19 | 확인 가능한 모든 실행에서 Gemini 403 → 애매한 글은 키워드 분류로 폴백되거나 무기한 보류(실행당 ~960건) | Actions 로그 |
 | 09-19 | 마지막 파이프라인 실행. 이후 스케줄 미실행 (공개 레포 60일 무활동 시 GitHub가 cron 자동 비활성화 — 마지막 커밋 07-21) | Actions 실행 이력 |
 | 10-14 | 전체 히스토리 스캔, 본 문서 재작성, CI·pre-commit 시크릿 스캔 도입 | 이 브랜치 |
-| _(작성 예정)_ | 키 재발급 완료 | |
+| 11-08 | Supabase 무료 프로젝트 일시정지 해제(9/19 cron 중단 후 비활성으로 정지), Voice Tracker Pipeline 재활성화, 주 1회 keepalive 워크플로 추가 | Actions 실행 이력 |
+| **11-08** | **키 재발급 완료**: Gemini 새 키·유출 키 삭제, Supabase 새 secret 키·프론트 publishable 키 전환, 레거시 JWT 키 비활성화, 레거시 HS256 서명 키 폐기. 유출된 service_role JWT는 REST·Auth 모두 401 | 이 문서 체크리스트 |
 
 > 기존 기록의 "2026-05-01 추적 해제 완료"는 실제 커밋 기준 **05-07**로, "Claude Code 자동 커밋으로 노출"은
 > **최초 노출은 웹 UI 커밋, 이후 수정 커밋이 Claude Code**로 정정했다.
@@ -34,9 +35,9 @@ gitleaks 8.24.3 `gitleaks git --log-opts=--all` (원격 전체 브랜치, 병합
 
 | 키 | 위치 · 커밋 | 분류 | 위험 | 상태 | 재발급 완료 |
 |---|---|---|---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` (JWT, role=service_role, 만료 2036-04) | `pipeline/.env:10` · cc04e0c, 632a1cc | **즉시 재발급** | 최고 — RLS를 우회해 전 테이블 읽기·수정·삭제. 만료가 10년 뒤라 재발급 전까지 사실상 영구 유효 | 유효 추정 (GitHub Secrets에 같은 키로 운영 중) | ☐ |
-| `GEMINI_API_KEY` | `pipeline/.env:5` · cc04e0c, 632a1cc | **즉시 재발급** | 과금·쿼터 도용 → Google이 이미 차단해 비용 위험은 소멸, 대신 **운영 장애**(LLM 분류 중단) | Google에 의해 차단됨 | ☐ |
-| `SUPABASE_ANON_KEY` (JWT, role=anon) | `pipeline/.env:9` · cc04e0c, 632a1cc | 공개 전제 | 낮음 — 원래 브라우저 번들에 들어가는 키. 권한은 RLS·GRANT가 결정(→ `004_restrict_anon_access.sql`) | 유효 | ☐ (legacy 키 비활성화·legacy JWT secret 폐기로 service_role과 함께 무효화) |
+| `SUPABASE_SERVICE_ROLE_KEY` (JWT, role=service_role, 만료 2036-04) | `pipeline/.env:10` · cc04e0c, 632a1cc | **즉시 재발급** | 최고 — RLS를 우회해 전 테이블 읽기·수정·삭제. 만료가 10년 뒤라 재발급 전까지 사실상 영구 유효 | 유효 추정 (GitHub Secrets에 같은 키로 운영 중) | ☑ 11-08 (레거시 HS256 서명 키 폐기, 옛 키 401 확인) |
+| `GEMINI_API_KEY` | `pipeline/.env:5` · cc04e0c, 632a1cc | **즉시 재발급** | 과금·쿼터 도용 → Google이 이미 차단해 비용 위험은 소멸, 대신 **운영 장애**(LLM 분류 중단) | Google에 의해 차단됨 | ☑ 11-08 (기존 프로젝트에 새 키, 유출 키 삭제) |
+| `SUPABASE_ANON_KEY` (JWT, role=anon) | `pipeline/.env:9` · cc04e0c, 632a1cc | 공개 전제 | 낮음 — 원래 브라우저 번들에 들어가는 키. 권한은 RLS·GRANT가 결정(→ `004_restrict_anon_access.sql`) | 유효 | ☑ 11-08 (legacy 키 비활성화·legacy JWT secret 폐기로 service_role과 함께 무효화, 프론트는 publishable 키) |
 | `SUPABASE_URL` (프로젝트 ref) | `pipeline/.env:8` · 632a1cc | 공개 정보 | 없음 | — | 해당 없음 |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | `frontend/.env.production:3` · 31d4a1e (현재도 추적) | 공개 전제 | 낮음 — Firebase 웹 키는 식별자 역할. 남용 방지는 키 제한으로 | 유효 | 해당 없음 (리퍼러 제한 권장) |
 
@@ -52,30 +53,32 @@ gitleaks 8.24.3 `gitleaks git --log-opts=--all` (원격 전체 브랜치, 병합
 각 서비스 공식 문서와 콘솔 소스로 확인했다. 화면 문구는 조금 다를 수 있다.
 
 1. **Gemini** — [Google AI Studio](https://aistudio.google.com/api-keys) → Dashboard → API Keys
-   - [ ] **Create API key**, 프로젝트는 **기존 프로젝트**를 선택. 2026-09-18부터 `gemini-2.5-flash-lite`는
+   - [x] **Create API key**, 프로젝트는 **기존 프로젝트**를 선택. 2026-09-18부터 `gemini-2.5-flash-lite`는
      이전에 쓰던 사용자만 쓸 수 있어 새 프로젝트에서는 404가 날 수 있다. 새 키는 `AQ.` 형식이고 기본으로 Gemini API에만 제한된다.
-   - [ ] curl로 `generateContent` 한 번 호출해 동작 확인 (404·401이면 모델 교체 검토 — 분류 로직 변경이라 승인 필요)
-   - [ ] 옛 키 삭제: Google Cloud Console → APIs & Services → Credentials
+   - [x] curl로 `generateContent` 한 번 호출해 동작 확인 (404·401이면 모델 교체 검토 — 분류 로직 변경이라 승인 필요)
+   - [x] 옛 키 삭제: Google Cloud Console → APIs & Services → Credentials (11-08 AI Studio API 키 화면에서 삭제)
 2. **Supabase** — legacy JWT secret을 직접 바꾸는 방식은 더 이상 제공되지 않는다
    ([공식 문서](https://supabase.com/docs/guides/troubleshooting/rotating-anon-service-and-jwt-secrets-1Jq6yd)).
    새 키 체계로 옮긴 뒤 legacy 키를 끄고, legacy secret을 폐기해야 유출된 JWT가 실제로 무효가 된다.
-   - [ ] 무료 플랜이 일시정지(paused) 상태면 먼저 복원
-   - [ ] Project Settings → API Keys → *Publishable and secret API keys* → **Create new API keys**
-   - [ ] (3~5번 소비처 갱신·6번 확인 후) *Legacy anon, service_role API keys* → **Disable JWT-based API keys**
-   - [ ] Project Settings → JWT Keys → *JWT Signing Keys* → **Migrate JWT secret** → **Rotate keys** →
+   - [x] 무료 플랜이 일시정지(paused) 상태면 먼저 복원
+   - [x] Project Settings → API Keys → *Publishable and secret API keys* → **Create new API keys**
+   - [x] (3~5번 소비처 갱신·6번 확인 후) *Legacy anon, service_role API keys* → **Disable JWT-based API keys**
+   - [x] Project Settings → JWT Keys → *JWT Signing Keys* → **Migrate JWT secret** → **Rotate keys** →
      legacy 행 **Revoke key**. 끄기만 하면 apikey 헤더 사용만 막히고 유출된 키는 "유효한 JWT"로 남는다.
+     - 11-08 실제 상태: 이 프로젝트는 이미 ECC(P-256) 서명 키가 Current, 레거시 HS256이 Previous였다. Previous(HS256)를 Revoke 해서 끝냄.
 3. **GitHub Actions secrets** (Settings → Secrets and variables → Actions)
-   - [ ] `GEMINI_API_KEY`(`AQ.…`) · [ ] `SUPABASE_SERVICE_ROLE_KEY`(`sb_secret_…`) · [ ] `SUPABASE_ANON_KEY`(`sb_publishable_…`)
+   - [x] `GEMINI_API_KEY`(`AQ.…`) · [x] `SUPABASE_SERVICE_ROLE_KEY`(`sb_secret_…`) · [x] `SUPABASE_ANON_KEY`(`sb_publishable_…`)
      — 이름은 그대로, `SUPABASE_URL`도 그대로. supabase-py 2.29·supabase-js 2.108은 새 키를 그대로 받는다(코드 변경 없음).
 4. **Cloudflare Pages** — `NEXT_PUBLIC_SUPABASE_ANON_KEY`는 레포의 `.env.production`에 없고 빌드 때 번들에 박힌다
-   - [ ] Git 연동이면 대시보드 Variables and Secrets(Production) 수정 후 **Retry deployment**,
+   - [x] Git 연동이면 대시보드 Variables and Secrets(Production) 수정 후 **Retry deployment**,
      직접 업로드면 `frontend/.env.local` 수정 후 `npm run deploy` → `/reactions/` 표시 확인
+     - 11-08 실제 처리: Cloudflare 로그인 없이 끝내려고 `frontend/lib/supabase.ts`에 publishable 키(공개 키)를 직접 넣었다. Pages 환경변수 `NEXT_PUBLIC_SUPABASE_ANON_KEY`는 더 이상 안 쓰므로 대시보드에서 지우기만 하면 된다 (☐).
 5. **로컬** `pipeline/.env`
    - [ ] 새 값으로 갱신 (`.env.example` 형식 참고)
 6. **동작 확인 → 옛 키 폐기**
-   - [ ] Actions → *Voice Tracker Pipeline* → **Enable workflow**(9/19 이후 비활성, 꺼진 워크플로는 수동 실행도 안 됨) → **Run workflow**
-   - [ ] 로그에 `403` 없음, LLM 성공 1건 이상 확인 → 2번의 Disable·Revoke 진행
-   - [ ] 옛 service_role 키로 REST를 호출해 `401`이 나오는지 확인
+   - [x] Actions → *Voice Tracker Pipeline* → **Enable workflow**(9/19 이후 비활성, 꺼진 워크플로는 수동 실행도 안 됨) → **Run workflow**
+   - [x] 로그에 `403` 없음, LLM 성공 1건 이상 확인 → 2번의 Disable·Revoke 진행
+   - [x] 옛 service_role 키로 REST를 호출해 `401`이 나오는지 확인
 7. **선택**
    - [ ] GitHub Secret scanning·Push protection 확인 (단, 아래 '재발 방지'의 한계 참고)
    - [ ] Firebase 웹 키의 API restrictions에 Generative Language API가 없는지 확인

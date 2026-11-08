@@ -343,3 +343,109 @@ def test_latency_and_fallback_counters(mock_get_client, fresh_llm_state):
     classify_post({"id": 1, "title": "애매한 의견 글 제목입니다 테스트"})
     assert fresh_llm_state.fallbacks == {"invalid_sentiment": 1, "category_filtered": 1}
     assert fresh_llm_state.avg_latency_ms is not None
+
+
+# ── 묶음 분류 (batch 모드) ─────────────────────────────────────────────────────
+
+def _queue_post(post_id: int, title: str) -> dict:
+    return {
+        "id": post_id, "source": "inven_aion2", "external_id": f"6388_{post_id}",
+        "posted_at": "2026-11-08T10:00:00+09:00", "classified_at": None,
+        "title": title, "category_tag": "잡담", "board_name": "자유",
+    }
+
+
+_BATCH_POSTS = [_queue_post(101, "망겜 ㅅㅂ"), _queue_post(102, "쟁탈전 존나잘만든듯"),
+                _queue_post(103, "성역 매크로 어떻게 쓰나요?")]
+
+
+@patch("src.processors.classifier._get_client")
+def test_classify_batch_maps_results_to_post_ids(mock_get_client, fresh_llm_state):
+    mock_get_client.return_value = _mock_client(
+        '[{"id":1,"sentiment":"negative","categories":["커뮤니티"],"topic":"게임 전반 불만","keywords":["망겜"]},'
+        ' {"id":2,"sentiment":"positive","categories":["콘텐츠"],"topic":"쟁탈전 호평","keywords":["쟁탈전"]},'
+        ' {"id":3,"sentiment":"neutral","categories":["콘텐츠"],"topic":"성역 매크로 질문","keywords":["성역","매크로"]}]'
+    )
+    results = clf.classify_batch(_BATCH_POSTS, known_topics=["게임 이탈"])
+
+    assert {k: v["sentiment"] for k, v in results.items()} == {101: "negative", 102: "positive", 103: "neutral"}
+    assert results[102]["issue_summary"] == "쟁탈전 호평"  # topic이 issue_summary로 저장된다
+    assert results[103]["keywords"] == ["성역", "매크로"]
+    assert results[101]["model"] == clf._model_chain()[0]
+    prompt = mock_get_client.return_value.models.generate_content.call_args.kwargs["contents"]
+    assert "게임 이탈" in prompt and "쟁탈전 존나잘만든듯" in prompt
+    assert fresh_llm_state.requests == 1 and fresh_llm_state.ok == 1
+
+
+@patch("src.processors.classifier._get_client")
+def test_classify_batch_missing_and_invalid_items(mock_get_client, fresh_llm_state):
+    """응답에서 빠진 글은 결과에 없고(다음 실행 재시도), 잘못된 sentiment는 neutral로 폴백."""
+    mock_get_client.return_value = _mock_client(
+        '[{"id":1,"sentiment":"angry","categories":["없는카테고리"],"topic":"","keywords":[]},'
+        ' {"id":99,"sentiment":"positive","categories":[],"topic":"x","keywords":[]}]'
+    )
+    results = clf.classify_batch(_BATCH_POSTS)
+
+    assert list(results) == [101]
+    assert results[101]["sentiment"] == "neutral"
+    assert results[101]["categories"] == ["기타"]
+    assert results[101]["issue_summary"] is None
+    assert fresh_llm_state.fallbacks["invalid_sentiment"] == 1
+
+
+@patch("src.processors.classifier._get_client")
+def test_classify_batch_auth_error_raises_unavailable(mock_get_client, fresh_llm_state):
+    client = MagicMock()
+    client.models.generate_content.side_effect = _api_error(
+        genai_errors.ClientError, 403, "PERMISSION_DENIED", "Your API key was reported as leaked.")
+    mock_get_client.return_value = client
+
+    with pytest.raises(clf.LLMUnavailable):
+        clf.classify_batch(_BATCH_POSTS)
+    assert fresh_llm_state.errors["auth"] == 1 and client.models.generate_content.call_count == 1
+
+
+@patch("src.processors.classifier._get_client")
+def test_classify_batch_quota_falls_back_to_next_model(mock_get_client, fresh_llm_state):
+    ok = MagicMock()
+    ok.text = '[{"id":1,"sentiment":"negative","categories":["기타"],"topic":"t","keywords":[]}]'
+    client = MagicMock()
+    client.models.generate_content.side_effect = [
+        _api_error(genai_errors.ClientError, 429, "RESOURCE_EXHAUSTED", "quota"), ok,
+    ]
+    mock_get_client.return_value = client
+
+    results = clf.classify_batch(_BATCH_POSTS[:1])
+
+    models = [c.kwargs["model"] for c in client.models.generate_content.call_args_list]
+    assert len(models) == 2 and models[0] != models[1]
+    assert results[101]["model"] == models[1]
+    assert models[0] in clf._dead_models
+
+
+def test_quota_exhausted_is_llm_unavailable():
+    assert issubclass(clf.QuotaExhausted, clf.LLMUnavailable)
+
+
+def test_bulk_update_sends_identity_columns(mock_supabase):
+    db = mock_supabase.return_value
+    results = {101: {"sentiment": "negative", "categories": ["기타"], "issue_summary": "t",
+                     "keywords": [], "model": "gemini-3.5-flash-lite"}}
+
+    assert clf.bulk_update_classifications(_BATCH_POSTS, results) == 1
+
+    payload = db.table.return_value.upsert.call_args.args[0]
+    assert db.table.return_value.upsert.call_args.kwargs == {"on_conflict": "id"}
+    assert len(payload) == 1
+    row = payload[0]
+    # INSERT 단계 NOT NULL 검사를 통과하도록 식별 컬럼을 같이 보낸다
+    assert (row["id"], row["source"], row["external_id"]) == (101, "inven_aion2", "6388_101")
+    assert row["classified_by_model"] == "gemini-3.5-flash-lite" and row["classified_at"]
+
+
+def test_bulk_update_returns_zero_on_error(mock_supabase):
+    mock_supabase.return_value.table.return_value.upsert.return_value.execute.side_effect = Exception("down")
+    results = {101: {"sentiment": "negative", "categories": [], "issue_summary": None,
+                     "keywords": [], "model": "m"}}
+    assert clf.bulk_update_classifications(_BATCH_POSTS, results) == 0
+    assert clf.bulk_update_classifications(_BATCH_POSTS, {}) == 0

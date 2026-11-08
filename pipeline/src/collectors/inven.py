@@ -202,31 +202,115 @@ def _parse_posted_at(raw: str, now: datetime | None = None) -> datetime:
         return _without_future(datetime(
             today.year, int(m.group(1)), int(m.group(2)), tzinfo=KST,
         ))
-    # HH:MM (오늘)
+    # HH:MM — 인벤은 '오늘'이 아니라 '24시간 이내' 글을 시각만 보여준다.
+    # 오늘 날짜를 붙였을 때 미래가 되면 어제 글이다 (예: 18:47에 본 '22:50'은 전날 22:50).
+    # 예전에는 오늘 날짜를 그대로 붙여 9월에만 1,221건이 미래 시각으로 저장됐다.
     m = re.match(r"(\d{2}):(\d{2})$", raw)
     if m:
-        return datetime(
+        dt = datetime(
             today.year, today.month, today.day,
             int(m.group(1)), int(m.group(2)),
             tzinfo=KST,
         )
+        if dt > now + timedelta(minutes=5):
+            dt -= timedelta(days=1)
+        return dt
 
     logger.warning(f"날짜 파싱 실패, 현재 시각으로 대체: '{raw}'")
     crawl_stats.date_fallbacks += 1
     return now
 
 
+# 제목 정리용 — 목록의 td.tit 텍스트는 '[말머리]제목[댓글수]사진'처럼 붙어 나온다
+_TAG_PREFIX_RE = re.compile(r"^\[([^\[\]]{1,10})\]\s*")
+_COMMENT_SUFFIX_RE = re.compile(r"\s*\[\d+\](?:사진|비디오|동영상)*$")
+_ICON_SUFFIX_RE = re.compile(r"(?<=\S)(?:사진|비디오|동영상)+$")
+
+
+def clean_title(raw: str) -> tuple[str, str | None]:
+    """'[잡담]제목[12]사진' → ('제목', '잡담').
+
+    목록 HTML 구조(a.subject-link)를 쓸 수 없을 때의 텍스트 정리. 댓글 수와 첫부 아이콘('사진' 등)은
+    제목 끝에 바로 붙어 나오므로, 앞에 공백이 없을 때만 아이콘 단어로 보고 떼어낸다.
+    """
+    title = (raw or "").strip()
+    tag = None
+    m = _TAG_PREFIX_RE.match(title)
+    if m:
+        tag, title = m.group(1).strip(), title[m.end():]
+    title = _COMMENT_SUFFIX_RE.sub("", title)
+    title = _ICON_SUFFIX_RE.sub("", title)
+    return title.strip(), tag
+
+
+def _parse_inven_rows(soup: BeautifulSoup, board_id: int) -> list[dict]:
+    """인벤 게시판 목록 표(tr > a.subject-link)만 파싱.
+
+    - 제목은 subject-link 안의 텍스트만 쓴다. 말머리(span.category)는 category_tag로 따로 두고,
+      댓글 수·첫부 아이콘은 링크 밖에 있어 자연히 빠진다.
+    - 사이드바 위젯(li 안의 뉴스·이벤트 링크)은 subject-link가 아니라 제외된다. 예전엔 이 위젯이
+      '08/26~11/11' 같은 기간 표기와 함께 게시글로 저장됐다.
+    """
+    posts: list[dict] = []
+    post_url_re = re.compile(rf"/board/aion2/{board_id}/(\d+)")
+    seen_ids: set[str] = set()
+
+    for link in soup.select("a.subject-link"):
+        m = post_url_re.search(link.get("href", ""))
+        if not m or m.group(1) in seen_ids:
+            continue
+        row = link.find_parent("tr")
+        if row is None:
+            continue
+        row_classes = row.get("class") or []
+        if any(c in row_classes for c in ("notice", "li-notice", "noti")):
+            continue
+
+        cat = link.select_one(".category")
+        tag = cat.get_text(strip=True).strip("[]").strip() if cat else None
+        if cat is not None:
+            cat.extract()
+        title = " ".join(link.stripped_strings)
+        if not title:
+            continue
+
+        author_tag = row.select_one(".layerNickName, .writer, .nickname, .nick")
+        date_tag = row.select_one("td.date, .date")
+        raw_date = date_tag.get_text(strip=True) if date_tag else ""
+        posted_at = _parse_posted_at(raw_date) if raw_date else datetime.now(tz=KST)
+
+        post_id = m.group(1)
+        seen_ids.add(post_id)
+        posts.append({
+            "source": "inven_aion2",
+            "external_id": f"{board_id}_{post_id}",
+            "url": f"{INVEN_BASE}/board/aion2/{board_id}/{post_id}",
+            "title": title,
+            "category_tag": tag or None,
+            "author": author_tag.get_text(strip=True) if author_tag else "",
+            "posted_at": posted_at.isoformat(),
+            "board_name": BOARD_NAMES.get(board_id),
+            "body": None,
+        })
+    return posts
+
+
 def parse_post_list(html: str, board_id: int) -> list[dict]:
     """목록 페이지 HTML에서 게시글 메타데이터 추출.
 
-    CSS 클래스 추측 대신 URL 패턴으로 링크를 탐색하고 부모 행(li/tr)을 가져오는
-    방식이므로 카드형/테이블형 레이아웃 변경에 영향받지 않음.
+    인벤 목록 표(a.subject-link)가 있으면 그것만 쓴다. 없으면(레이아웃 변경 등) URL 패턴으로
+    링크를 탐색하고 부모 행(li/tr)을 가져오는 범용 방식으로 돌아간다.
 
     Returns:
         list of dict with keys:
-            source, external_id, url, title, author, posted_at (ISO str), body
+            source, external_id, url, title, category_tag, author, posted_at (ISO str), body
     """
     soup = BeautifulSoup(html, "lxml")
+    if soup.select_one("a.subject-link") is not None:
+        posts = _parse_inven_rows(soup, board_id)
+        logger.info(f"파싱 완료: {len(posts)}건 (board_id={board_id})")
+        return posts
+
     posts: list[dict] = []
     post_url_re = re.compile(rf"/board/aion2/{board_id}/(\d+)")
     seen_ids: set[str] = set()
@@ -257,7 +341,7 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
 
         if not row:
             # 최후 폴백: 링크 텍스트만으로 게시글 생성 (날짜·작성자 없음)
-            title = link.get_text(strip=True)
+            title, tag = clean_title(link.get_text(strip=True))
             if not title:
                 continue
             seen_ids.add(post_id)
@@ -266,6 +350,7 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
                 "external_id": f"{board_id}_{post_id}",
                 "url": f"{INVEN_BASE}/board/aion2/{board_id}/{post_id}",
                 "title": title,
+                "category_tag": tag,
                 "author": "",
                 "posted_at": datetime.now(tz=KST).isoformat(),
                 "board_name": BOARD_NAMES.get(board_id),
@@ -281,9 +366,11 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
         if cate_tag and cate_tag.get_text(strip=True) in ("공지", "이벤트공지", "긴급공지"):
             continue
 
-        # 제목: .tit 우선, 없으면 링크 텍스트
+        # 제목: .tit 우선, 없으면 링크 텍스트 — 말머리·댓글 수·아이콘 글자는 떼어낸다
         title_tag = row.select_one(".tit")
-        title = title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
+        title, tag = clean_title(
+            title_tag.get_text(strip=True) if title_tag else link.get_text(strip=True)
+        )
         if not title:
             continue
 
@@ -300,6 +387,7 @@ def parse_post_list(html: str, board_id: int) -> list[dict]:
             "external_id": f"{board_id}_{post_id}",
             "url": f"{INVEN_BASE}/board/aion2/{board_id}/{post_id}",
             "title": title,
+            "category_tag": tag,
             "author": author,
             "posted_at": posted_at.isoformat(),
             "board_name": BOARD_NAMES.get(board_id),

@@ -29,7 +29,11 @@ VALID_CATEGORIES: list[str] = [
 ]
 
 
-class QuotaExhausted(Exception):
+class LLMUnavailable(Exception):
+    """이번 실행에서는 LLM을 더 쓸 수 없음 (인증 실패·모든 모델 쿼터 소진 등)."""
+
+
+class QuotaExhausted(LLMUnavailable):
     """Gemini API 일일/분당 쿼터 소진 — 해당 배치 분류를 즉시 중단해야 함."""
 
 
@@ -83,13 +87,12 @@ def _error_kind(exc: BaseException) -> str:
 
 
 # 분류 모델 폴백 체인 — 앞에서부터 시도, 404(퇴역)·429(쿼터소진)면 다음 모델로.
-# 무료 한도가 큰(또는 살아있을 가능성이 높은) 모델을 앞에 배치.
-# 이 프로젝트의 무료 할당이 들쭉날쭉이라(2.5-flash=20RPD, 1.5-flash=404,
-# 2.0-flash-lite=0) 여러 후보를 순회해 살아있는 모델을 자동 선택한다.
+# 무료 한도가 큰 모델을 앞에 배치. 한도는 모델별·프로젝트별로 따로 잡힌다.
+# 2026-11 AI Studio 표기 (무료 등급): 3.5·3.1 flash-lite 15 RPM·500 RPD, 2.5 flash-lite 10 RPM·20 RPD.
 _FALLBACK_MODELS: list[str] = [
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-2.5-flash",
 ]
 
 # 이번 실행에서 404/쿼터소진으로 사용 불가 판정된 모델 (호출 낭비 방지)
@@ -302,6 +305,230 @@ def classify_post(post: dict) -> dict | None:
 
     # 체인의 모든 모델이 404/쿼터소진 → 배치 중단 신호
     raise QuotaExhausted(last_quota_exc or "모든 후보 모델 사용 불가")
+
+
+# ── 묶음 분류 (batch 모드, 2026-11~ 기본) ───────────────────────────────────────────────
+# 글 하나당 요청 1번이면 무료 한도(하루 수백 회)로 하루 수백~천 건을 다 못 본다. 제목만 보는 분류라
+# 여러 글을 한 요청에 묶는다 (50건 기준 요청 1번 약 5초, 입력 2천·출력 3천 토큰).
+# issue_summary에는 요약문 대신 여러 글이 공유하는 짧은 이슈 topic을 넣는다 — 대시보드
+# '오늘의 주요 이슈 TOP 5'가 같은 문자열 빈도로 묶기 때문 (예전엔 제목이 그대로 들어가 전부 1회였다).
+
+_BATCH_PROMPT = """\
+당신은 아이왘2(AION 2) 한국 게임 커뮤니티(인벤 아이왘2 게시판) 게시글을 분류하는 분석가입니다.
+아래 JSON 배열의 각 게시글(제목만 있음)을 읽고, 모든 항목에 대해 결과를 하나씩 반환하세요.
+입력 필드: id, board(게시판: 자유 또는 직업명), tag(인벤 말머리: 일반/잡담/질문 등, 없을 수 있음), title(제목)
+
+## sentiment (글쓴이의 감정·태도)
+- negative: 불만, 비판, 항의, 조롱, 욕설, 분노, 실망, 포기·접음 선언, 너프·하향 요구, 운영진·개발사 비난,
+  버그·오류 불만, 다른 유저 비난
+  - 질문 형식이어도 불만·비꼼이 담기면 negative (예: "이걸 패치라고 한 거임?", "뭐가 좋다고 헤헤거림??")
+  - 반어적 칭찬은 negative (예: "레전드 갓패치", "역시 게임 잘 만드네 ㅋㅋ")
+- positive: 칭찬, 기쁨, 만족, 감사, 성공·클리어·득템 자랑, 기대감, 공략·팁 공유, 업데이트 환영
+- neutral: 순수 질문, 정보 요청, 단순 정보·소식 전달, 감정이 드러나지 않는 잡담·관찰
+
+## categories (최대 2개): 클래스밸런스, 버그오류, 콘텐츠, 이벤트과금, 커뮤니티, 기타
+
+## topic: 이 글의 이슈를 "대상 + 쟁점" 형식의 짧은 명사구(2~3단어, 12자 이내)로 일반화
+  - 구체적 수치·상황·닉네임·욕설은 빼고, 여러 글이 공유할 수 있게 넓게 묶으세요
+  - 예: "정령성 밸런스", "성역 난이도", "비탄 보상", "패치 불만", "게임 이탈", "파티 매칭", "강화 확률",
+    "서버 오류", "운영 불만", "PVP 밸런스", "직업 선택", "아이템 자랑"
+  - 같은 이슈의 글에는 반드시 똑같은 topic 문자열을 쓰세요
+{known_topics}
+## keywords: 핵심 명사 최대 4개 (직업명, 콘텐츠명, 스킬·시스템명)
+
+## 출력: JSON 배열만. 입력 순서대로, 모든 id 포함.
+
+## 입력
+{items}
+"""
+
+_BATCH_SCHEMA = {
+    "type": "ARRAY",
+    "items": {
+        "type": "OBJECT",
+        "properties": {
+            "id": {"type": "INTEGER"},
+            "sentiment": {"type": "STRING", "enum": sorted(VALID_SENTIMENTS)},
+            "categories": {"type": "ARRAY", "items": {"type": "STRING", "enum": VALID_CATEGORIES}},
+            "topic": {"type": "STRING"},
+            "keywords": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["id", "sentiment", "categories", "topic", "keywords"],
+    },
+}
+
+_TOPIC_MAX_LEN = 30
+
+
+def build_batch_prompt(posts: list[dict], known_topics: list[str] | None = None) -> str:
+    """묶음 분류 프롬프트. id는 DB id 대신 1부터의 순번(출력 토큰 절약·매핑 단순화)."""
+    items = [
+        {
+            "id": i,
+            "board": p.get("board_name") or "",
+            "tag": p.get("category_tag") or "",
+            "title": (p.get("title") or "").strip()[:200],
+        }
+        for i, p in enumerate(posts, start=1)
+    ]
+    hint = ""
+    if known_topics:
+        hint = "  - 아래 기존 topic 중 맞는 것이 있으면 그대로 재사용: " + " / ".join(known_topics) + "\n"
+    return _BATCH_PROMPT.format(known_topics=hint, items=json.dumps(items, ensure_ascii=False))
+
+
+def _generate_batch(client: genai.Client, model: str, prompt: str) -> str:
+    """묶음 분류 요청 1건 — 구조화 출력(JSON 스키마)으로 항목 누락·형식 오류를 줄인다."""
+
+    def _once() -> str:
+        llm_stats.requests += 1
+        started = time.perf_counter()
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=_BATCH_SCHEMA,
+                temperature=0.2,
+            ),
+        )
+        llm_stats.latency_ms_total += (time.perf_counter() - started) * 1000
+        return response.text
+
+    def _count_retry(*_args) -> None:
+        llm_stats.retries += 1
+
+    return call_with_retry(
+        _once, is_retryable=lambda e: _error_kind(e) == "transient",
+        attempts=3, base=2.0, cap=20.0, on_retry=_count_retry,
+    )
+
+
+def _clean_batch_item(item: dict, post: dict, model: str) -> dict:
+    """LLM 출력 1건 검증·정리 (classify_post와 같은 폴백 기록 규칙)."""
+    title = (post.get("title") or "").strip()
+    sentiment = item.get("sentiment")
+    if sentiment not in VALID_SENTIMENTS:
+        logger.warning("유효하지 않은 sentiment %r → neutral 폴백 (title=%r, model=%s)",
+                       sentiment, title[:30], model)
+        _log_fallback(post, "invalid_sentiment", str(sentiment), model)
+        llm_stats.fallbacks["invalid_sentiment"] += 1
+        sentiment = "neutral"
+
+    raw_cats = item.get("categories") or []
+    categories = [c for c in raw_cats if c in VALID_CATEGORIES][:3] or ["기타"]
+    dropped = [c for c in raw_cats if c not in VALID_CATEGORIES]
+    if dropped:
+        _log_fallback(post, "category_filtered", json.dumps(dropped, ensure_ascii=False), model)
+        llm_stats.fallbacks["category_filtered"] += 1
+
+    topic = " ".join(str(item.get("topic") or "").split())[:_TOPIC_MAX_LEN] or None
+    keywords = [str(k).strip() for k in (item.get("keywords") or []) if str(k).strip()][:5]
+    return {
+        "sentiment": sentiment,
+        "categories": categories,
+        "issue_summary": topic,
+        "keywords": keywords,
+        "model": model,
+    }
+
+
+def classify_batch(posts: list[dict], known_topics: list[str] | None = None) -> dict[int, dict]:
+    """여러 글을 Gemini 요청 1번으로 분류.
+
+    Returns:
+        {post id: 분류 결과}. 응답에서 빠진 글은 들어 있지 않다(다음 실행에서 재시도).
+        일시 오류가 재시도 끝에도 안 풀리면 빈 dict.
+
+    Raises:
+        LLMUnavailable: 인증 실패 — 이번 실행에서 LLM을 더 부르지 말 것
+        QuotaExhausted: 후보 모델 전부 404·쿼터 소진
+    """
+    if not posts:
+        return {}
+    chain = _model_chain()
+    if not chain:
+        raise QuotaExhausted("모든 후보 모델 사용 불가")
+
+    prompt = build_batch_prompt(posts, known_topics)
+    client = _get_client()
+    last_quota_exc: str | None = None
+
+    for model in chain:
+        try:
+            data = json.loads(_generate_batch(client, model, prompt))
+        except Exception as exc:
+            kind = "parse" if isinstance(exc, json.JSONDecodeError) else _error_kind(exc)
+            llm_stats.errors[kind] += 1
+            if kind in ("not_found", "quota"):
+                logger.warning("모델 %s 사용 불가(%s) — 다음 모델로", model, kind)
+                _dead_models.add(model)
+                if kind == "quota":
+                    last_quota_exc = str(exc)[:200]
+                continue
+            if kind == "auth":
+                raise LLMUnavailable(f"Gemini 인증 실패: {str(exc)[:200]}") from exc
+            if kind == "parse":
+                logger.warning("묶음 응답 JSON 파싱 실패 (model=%s) — 다음 모델로", model)
+                continue
+            logger.warning("Gemini 묶음 분류 실패 (model=%s, kind=%s): %s", model, kind, exc)
+            return {}
+
+        llm_stats.ok += 1
+        items = data if isinstance(data, list) else (data.get("results") or [])
+        results: dict[int, dict] = {}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            try:
+                idx = int(item.get("id"))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= idx <= len(posts):
+                post = posts[idx - 1]
+                results[post["id"]] = _clean_batch_item(item, post, model)
+        missing = len(posts) - len(results)
+        if missing:
+            logger.warning("묶음 응답에서 %d건 누락 (model=%s) — 다음 실행에서 재시도", missing, model)
+        return results
+
+    raise QuotaExhausted(last_quota_exc or "모든 후보 모델 사용 불가")
+
+
+def bulk_update_classifications(posts: list[dict], results: dict[int, dict]) -> int:
+    """분류 결과를 요청 1번에 저장. 저장한 건수를 돌려준다 (실패 시 0).
+
+    Actions 러너(미국)와 DB(서울) 사이 왕복이 길어 글마다 UPDATE하면 수천 건에 수 분이 걸린다.
+    PostgREST upsert(ON CONFLICT (id) DO UPDATE)로 묶는데, INSERT 단계의 NOT NULL 검사를
+    통과하도록 식별 컨럼(source, external_id, posted_at)을 같이 보낸다 (값은 그대로라 변경 없음).
+    """
+    now = datetime.now(tz=timezone.utc).isoformat()
+    payload = []
+    for post in posts:
+        result = results.get(post["id"])
+        if not result:
+            continue
+        payload.append({
+            "id": post["id"],
+            "source": post["source"],
+            "external_id": post["external_id"],
+            "posted_at": post["posted_at"],
+            "sentiment": result["sentiment"],
+            "categories": result["categories"],
+            "issue_summary": result["issue_summary"],
+            "keywords": result["keywords"],
+            "classified_by_model": result.get("model"),
+            "classified_at": now,
+        })
+    if not payload:
+        return 0
+    db = get_supabase(use_service_role=True)
+    try:
+        db.table("voice_raw_posts").upsert(payload, on_conflict="id").execute()
+        return len(payload)
+    except Exception as exc:
+        logger.error("분류 결과 일괄 저장 실패 (%d건): %s", len(payload), exc)
+        return 0
 
 
 def update_classification(post_id: int, result: dict) -> bool:

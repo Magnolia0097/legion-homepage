@@ -42,6 +42,59 @@ def test_unparseable_falls_back_to_now():
     assert _parse_posted_at("어제", now=NOW) == NOW
 
 
+def test_time_only_later_than_now_is_yesterday():
+    """인벤은 24시간 이내 글을 시각만 보여준다 — 18:47에 본 '22:50'은 전날 글."""
+    now = datetime(2026, 11, 8, 18, 47, tzinfo=KST)
+    assert _parse_posted_at("22:50", now=now) == datetime(2026, 11, 7, 22, 50, tzinfo=KST)
+    assert _parse_posted_at("18:45", now=now) == datetime(2026, 11, 8, 18, 45, tzinfo=KST)
+
+
+# ── 제목 정리·목록 파싱 ──────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("raw, expected", [
+    ("[잡담]아이왘2 1주년 라이브 내용 요약(완료)[12]사진", ("아이왘2 1주년 라이브 내용 요약(완료)", "잡담")),
+    ("[일반]주신스탯 반감되면", ("주신스탯 반감되면", "일반")),
+    ("[일반]남준이가 이러는 eu사진", ("남준이가 이러는 eu", "일반")),
+    ("[일반]검성으로 성역클 했습니당! ㅠㅠ[3]비디오", ("검성으로 성역클 했습니당! ㅠㅠ", "일반")),
+    ("흑각[네자], 백각[네자] 3넴앞", ("흑각[네자], 백각[네자] 3넴앞", None)),
+    ("오늘 찍은 사진", ("오늘 찍은 사진", None)),  # 공백 뒤 '사진'은 제목의 일부
+])
+def test_clean_title(raw, expected):
+    assert inven.clean_title(raw) == expected
+
+
+_INVEN_HTML = """
+<ul class="news"><li class="b6388"><a href="https://www.inven.co.kr/board/aion2/6388/291057">
+  <div class="cate">소식</div><div class="tit">붉게 물든 가을 단풍 (~11/11)</div></a>
+  <div class="date">08/26~11/11</div></li></ul>
+<table><tbody>
+<tr class="notice all"><td class="tit"><a class="subject-link" href="https://www.inven.co.kr/board/aion2/6388/108155">
+  <span class="category">[기타]</span> 인벤 커뮤니티 이용 안내 </a></td><td class="date">02-27</td></tr>
+<tr class=""><td class="tit"><div class="text-wrap"><div>
+  <a class="subject-link" href="https://www.inven.co.kr/board/aion2/6388/292663">
+  <span class="category">[잡담]</span> <b>아이왘2 1주년 라이브 내용 요약</b> (완료) </a></div>
+  <span class="con-comment">[12]</span> <span class="con-icon board-img photo">사진</span></div></td>
+  <td class="user"><span class="layerNickName">Roah</span></td><td class="date">16:06</td></tr>
+<tr class=""><td class="tit"><a class="subject-link" href="https://www.inven.co.kr/board/aion2/6388/292600">
+  <span class="category">[질문]</span> 성역 매크로 어떻게 쓰나요? </a>
+  <span class="con-comment">&ensp;</span></td><td class="date">11-06</td></tr>
+</tbody></table>
+"""
+
+
+def test_parse_inven_rows_cleans_title_and_skips_notice_and_widget():
+    posts = inven.parse_post_list(_INVEN_HTML, 6388)
+    assert [p["external_id"] for p in posts] == ["6388_292663", "6388_292600"]
+    first, second = posts
+    assert first["title"] == "아이왘2 1주년 라이브 내용 요약 (완료)"
+    assert first["category_tag"] == "잡담"
+    assert first["author"] == "Roah"
+    assert first["board_name"] == "자유"
+    assert second["title"] == "성역 매크로 어떻게 쓰나요?"
+    assert second["category_tag"] == "질문"
+    assert datetime.fromisoformat(second["posted_at"]).strftime("%m-%d") == "11-06"
+
+
 # ── 재시도·robots.txt ─────────────────────────────────────────────────────────
 
 def _resp(status: int, text: str = "", headers: dict | None = None) -> MagicMock:

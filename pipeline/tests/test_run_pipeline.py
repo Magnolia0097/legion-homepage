@@ -322,3 +322,124 @@ def test_strict_mode_fails_on_critical_finding(mock_collect, mock_save, mock_fet
     assert main() == 0  # 기본: 경고만
     monkeypatch.setenv("PIPELINE_STRICT", "1")
     assert main() == 2  # strict: 치명 경고면 실패 → Actions 실패 알림
+
+
+# ── batch 모드 (2026-11~ 운영 기본값) ─────────────────────────────────────────
+
+def _queue_post(post_id: int, title: str = "성역 난이도 너무 높아요", classified_at=None,
+                posted_at: str | None = None) -> dict:
+    return {
+        "id": post_id, "source": "inven_aion2", "external_id": f"6388_{post_id}",
+        "posted_at": posted_at or datetime.now(tz=_KST).isoformat(),
+        "classified_at": classified_at, "title": title, "category_tag": "잡담", "board_name": "자유",
+    }
+
+
+def _llm_result(post_id: int) -> dict:
+    return {"sentiment": "negative", "categories": ["콘텐츠"], "issue_summary": "성역 난이도",
+            "keywords": ["성역"], "model": "gemini-3.5-flash-lite"}
+
+
+@pytest.fixture
+def batch_env():
+    """batch 모드의 DB·LLM 경계를 전부 mock."""
+    with patch("scripts.run_pipeline.collect_inven_aion2", return_value=[]), \
+         patch("scripts.run_pipeline.save_posts", return_value=0), \
+         patch("scripts.run_pipeline.fetch_unclassified") as fetch_new, \
+         patch("scripts.run_pipeline.fetch_upgrade_candidates", return_value=[]) as fetch_old, \
+         patch("scripts.run_pipeline.fetch_recent_topics", return_value=["성역 난이도"]) as topics, \
+         patch("scripts.run_pipeline.classify_batch") as batch, \
+         patch("scripts.run_pipeline.bulk_update_classifications",
+               side_effect=lambda posts, results: sum(1 for p in posts if p["id"] in results)) as bulk, \
+         patch("scripts.run_pipeline.mark_as_spam") as spam, \
+         patch("scripts.run_pipeline.time.sleep") as sleep:
+        yield {"fetch_new": fetch_new, "fetch_old": fetch_old, "topics": topics, "batch": batch,
+               "bulk": bulk, "spam": spam, "sleep": sleep}
+
+
+def test_batch_mode_classifies_in_batches_and_refreshes_touched_days(settings, batch_env, recorded):
+    settings(classifier_mode="batch", llm_batch_size=2, gemini_calls_per_run=3, llm_min_interval=0.01)
+    posts = [_queue_post(i) for i in range(1, 6)]
+    batch_env["fetch_new"].return_value = posts
+    batch_env["fetch_old"].return_value = []
+    batch_env["batch"].side_effect = lambda b, topics: {p["id"]: _llm_result(p["id"]) for p in b}
+
+    with patch("scripts.run_pipeline.refresh_daily_stats", return_value=1) as daily:
+        assert main() == 0
+
+    # 예산 = 2건 x 3요청 = 6건 → 미분류 5건 + 재분류 대상 1건까지 조회
+    batch_env["fetch_new"].assert_called_once()
+    assert batch_env["fetch_new"].call_args.kwargs["limit"] == 6
+    batch_env["fetch_old"].assert_called_once_with(limit=1)
+    assert [len(c.args[0]) for c in batch_env["batch"].call_args_list] == [2, 2, 1]
+    run = recorded["finish"].call_args.args[0]
+    assert (run.unclassified_count, run.classified_count, run.deferred_count, run.failed_count) == (5, 5, 0, 0)
+    days = daily.call_args.kwargs["days"]
+    assert len(days) == 5  # 분류된 글의 posted_at이 집계 단계로 넘어간다
+
+
+def test_batch_mode_marks_ads_as_spam_without_llm(settings, batch_env, recorded):
+    settings(classifier_mode="batch", llm_batch_size=50, gemini_calls_per_run=2)
+    ad = _queue_post(1, "｜4만명 회원보유｜키나판매｜최대규모 통디｜")
+    batch_env["fetch_new"].return_value = [ad, _queue_post(2)]
+    batch_env["batch"].side_effect = lambda b, topics: {p["id"]: _llm_result(p["id"]) for p in b}
+
+    main()
+
+    batch_env["spam"].assert_called_once_with(1)
+    assert [p["id"] for p in batch_env["batch"].call_args.args[0]] == [2]
+
+
+def test_batch_mode_llm_unavailable_falls_back_only_for_recent_unclassified(settings, batch_env, recorded):
+    """LLM 인증 실패 → 최근 24h 미분류 글만 키워드 임시 분류, 오래된 글·재분류 대상은 보류."""
+    from src.processors.classifier import LLMUnavailable
+
+    settings(classifier_mode="batch", llm_batch_size=50, gemini_calls_per_run=2)
+    old = (datetime.now(tz=_KST) - timedelta(days=3)).isoformat()
+    recent, stale = _queue_post(1), _queue_post(2, posted_at=old)
+    legacy = _queue_post(3, classified_at="2026-09-01T00:00:00+00:00")
+    batch_env["fetch_new"].return_value = [recent, stale]
+    batch_env["fetch_old"].return_value = [legacy]
+    batch_env["batch"].side_effect = LLMUnavailable("auth")
+
+    assert main() == 0
+
+    saved_posts, saved_results = batch_env["bulk"].call_args.args
+    assert [p["id"] for p in saved_posts] == [1]
+    assert saved_results[1]["model"] == "local-keyword" and saved_results[1]["issue_summary"] is None
+    run = recorded["finish"].call_args.args[0]
+    assert (run.classified_count, run.deferred_count) == (1, 2)
+
+
+def test_batch_mode_missing_results_count_as_failed(settings, batch_env, recorded):
+    settings(classifier_mode="batch", llm_batch_size=50, gemini_calls_per_run=1)
+    batch_env["fetch_new"].return_value = [_queue_post(1), _queue_post(2)]
+    batch_env["batch"].return_value = {1: _llm_result(1)}
+
+    main()
+
+    run = recorded["finish"].call_args.args[0]
+    assert (run.classified_count, run.failed_count) == (1, 1)
+
+
+def test_batch_mode_respects_time_budget(settings, batch_env, recorded):
+    settings(classifier_mode="batch", llm_batch_size=1, gemini_calls_per_run=5, classify_time_budget=0)
+    batch_env["fetch_new"].return_value = [_queue_post(i) for i in range(1, 4)]
+
+    main()
+
+    batch_env["batch"].assert_not_called()
+    assert recorded["finish"].call_args.args[0].deferred_count == 3
+
+
+def test_collect_saves_posts_from_previous_days(settings, recorded):
+    """예전엔 '오늘 글'만 저장해 자정 직전 글이 빠졌다 — 이제 수집한 글은 모두 저장한다."""
+    settings(classifier_mode="batch")
+    yesterday = (datetime.now(tz=_KST) - timedelta(days=1)).isoformat()
+    collected = [{"posted_at": yesterday}, {"posted_at": datetime.now(tz=_KST).isoformat()}]
+    with patch("scripts.run_pipeline.collect_inven_aion2", return_value=collected), \
+         patch("scripts.run_pipeline.save_posts", return_value=2) as save, \
+         patch("scripts.run_pipeline.fetch_unclassified", return_value=[]), \
+         patch("scripts.run_pipeline.fetch_upgrade_candidates", return_value=[]):
+        main()
+    assert save.call_args.args[0] == collected

@@ -21,7 +21,7 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20   # 분류 단계는 CLASSIFY_TIME_BUDGET(10분) 안에서 끝난다
 
     steps:
       - name: Checkout
@@ -42,9 +42,11 @@ jobs:
           INVEN_REQUEST_INTERVAL=3.0
           INVEN_BOARD_IDS=6388,6438,6448,6449,6450,6451,6452,6453,6454
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL=gemini-2.5-flash-lite
-          CLASSIFIER_MODE=hybrid
-          GEMINI_CALLS_PER_RUN=12
+          GEMINI_MODEL=gemini-3.5-flash-lite
+          CLASSIFIER_MODE=batch
+          GEMINI_CALLS_PER_RUN=40
+          LLM_BATCH_SIZE=50
+          CLASSIFY_TIME_BUDGET=600
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

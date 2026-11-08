@@ -31,9 +31,10 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > supabase/types.
 |------|------|
 | `001_voice_tracker.sql` | voice_raw_posts · voice_hourly_stats · voice_daily_stats 테이블 + RLS |
 | `002_classification_audit.sql` | classified_by_model 컬럼 + classification_fallback_log 테이블 (분류 품질 측정용) |
-| `003_sync_board_name.sql` | ⚠ 운영 미적용 — 수동으로 추가돼 있던 board_name 컬럼을 마이그레이션에 기록 (스키마 드리프트 정리, 운영에선 no-op 예상) |
-| `004_restrict_anon_access.sql` | ⚠ 운영 미적용 — anon 키 권한 최소화: 쓰기 권한 회수, voice_raw_posts 컬럼 단위 읽기(author·body 비공개), fallback_log 비공개 |
-| `005_pipeline_runs.sql` | ⚠ 운영 미적용 — 실행 로그 테이블(실행당 1행: 상태·건수·LLM 오류·품질 경고). 미적용이어도 파이프라인은 경고만 남기고 동작 |
+| `003_sync_board_name.sql` | 수동으로 추가돼 있던 board_name 컬럼을 마이그레이션에 기록 (스키마 드리프트 정리, 운영에선 no-op 예상). 운영 적용 2026-11-08 |
+| `004_restrict_anon_access.sql` | anon 키 권한 최소화: 쓰기 권한 회수, voice_raw_posts 컬럼 단위 읽기(author·body 비공개), fallback_log 비공개. 운영 적용 2026-11-08 |
+| `005_pipeline_runs.sql` | 실행 로그 테이블(실행당 1행: 상태·건수·LLM 오류·품질 경고). 미적용이어도 파이프라인은 경고만 남기고 동작. 운영 적용 2026-11-08 |
+| `006_title_cleanup_and_date_repair.sql` | 말머리 컬럼 category_tag + 제목의 [말머리]·[댓글 수]·사진 표시 정리 + 날짜 파싱 버그로 틀린 posted_at 보정(미래 시각·수집 시각). 운영 적용 2026-11-08 |
 
 > ⚠ 표시는 파일만 준비된 상태. 운영 적용은 승인 후 SQL Editor에서 실행하고, 적용 전·후로
 > `supabase/checks/rls_audit.sql`을 돌려 결과를 비교한다.

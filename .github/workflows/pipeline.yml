@@ -10,6 +10,14 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read   # 체크아웃만 필요 — 기본 토큰 권한 최소화
+
+# 예약 실행과 수동 실행이 겹치면 같은 미분류 글을 두 번 처리(Gemini 이중 호출)하므로 직렬화
+concurrency:
+  group: voice-pipeline
+  cancel-in-progress: false
+
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
@@ -44,10 +52,13 @@ jobs:
 
       - name: Install dependencies
         working-directory: pipeline
-        run: uv sync
+        run: uv sync --locked   # uv.lock과 어긋나면 실패 → 운영에서 의존성이 몰래 바뀌지 않게
 
       - name: Run pipeline
         working-directory: pipeline
         env:
           RESET_CLASSIFICATIONS: ${{ github.event.inputs.reset_classifications }}
+          # 1로 바꾸면 치명적 품질 경고(LLM 인증 오류 등) 시 실행을 실패 처리 → GitHub 실패 알림 메일
+          PIPELINE_STRICT: '0'
+        # 실행 요약 표는 실행 페이지 Summary 탭에 출력된다 (src/summary.py)
         run: uv run python scripts/run_pipeline.py

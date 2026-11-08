@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.robotparser import RobotFileParser
 
@@ -24,6 +25,7 @@ from bs4 import BeautifulSoup
 
 from ..config import get_settings
 from ..db import get_supabase
+from ..retry import call_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,43 @@ BOARD_NAMES: dict[int, str] = {
     6454: "정령성",
 }
 
+_REQUEST_TIMEOUT = 10  # 초 — 연결·읽기 각각
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+
+
+@dataclass
+class CrawlStats:
+    """실행 1회의 수집 지표 — 실행 요약·pipeline_runs 기록용."""
+
+    pages_ok: int = 0
+    pages_failed: int = 0   # 재시도까지 실패한 페이지
+    retries: int = 0
+    date_fallbacks: int = 0  # 날짜 파싱 실패로 현재 시각을 넣은 글
+
+
+crawl_stats = CrawlStats()
+
+
+def reset_crawl_stats() -> None:
+    """실행 시작 시 호출. 다른 모듈이 잡고 있는 참조가 끊기지 않도록 제자리에서 초기화."""
+    crawl_stats.__init__()
+
+
+class _RetryableStatus(Exception):
+    """재시도할 HTTP 상태(429·5xx). Retry-After 헤더가 숫자면 retry_after로 전달."""
+
+    def __init__(self, response: requests.Response):
+        super().__init__(f"HTTP {response.status_code}")
+        self.response = response
+        ra = response.headers.get("Retry-After", "")
+        self.retry_after = float(ra) if ra.isdigit() else None
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    # ConnectTimeout은 ConnectionError·Timeout 둘 다의 하위 클래스
+    return isinstance(exc, (requests.ConnectionError, requests.Timeout, _RetryableStatus))
+
+
 # 모듈 레벨 Session 싱글톤 — 커넥션 재사용으로 오버헤드 감소
 _session: requests.Session | None = None
 
@@ -59,55 +98,111 @@ def _get_session() -> requests.Session:
     return _session
 
 
-def _check_robots(target_url: str) -> bool:
-    """robots.txt 확인, 수집 가능 여부 반환. 읽기 실패 시 허용으로 간주."""
-    settings = get_settings()
-    rp = RobotFileParser()
-    rp.set_url(f"{INVEN_BASE}/robots.txt")
+_ROBOTS_UNSET = object()
+_robots_cache: object = _ROBOTS_UNSET  # RobotFileParser | None(=규칙 없음, 허용)
+
+
+def _load_robots() -> RobotFileParser | None:
+    """robots.txt를 타임아웃 있는 세션으로 1회 조회.
+
+    예전엔 RobotFileParser.read()(urllib, 타임아웃 없음)를 게시판마다 호출했다. 인벤 접속이
+    막히면 게시판당 OS TCP 타임아웃(수 분)씩 멈춰 Actions 15분 제한을 넘겼다(취소된 49회 실행의 원인).
+    정책은 그대로: 읽기 실패·401/403·404면 규칙 없음으로 보고 허용(ADR 004: /board/aion2/* 허용 확인).
+    """
     try:
-        rp.read()
-    except Exception as exc:
+        resp = _get_session().get(f"{INVEN_BASE}/robots.txt", timeout=_REQUEST_TIMEOUT)
+    except requests.RequestException as exc:
         logger.warning(f"robots.txt 읽기 실패, 허용으로 간주: {exc}")
+        return None
+    if resp.status_code >= 400:
+        logger.warning(f"robots.txt {resp.status_code} 응답, 규칙 없음으로 간주 (허용)")
+        return None
+    rp = RobotFileParser()
+    rp.parse(resp.text.splitlines())
+    return rp
+
+
+def _check_robots(target_url: str) -> bool:
+    """robots.txt 규칙상 수집 가능 여부. robots.txt는 프로세스당 1회만 조회해 캐시."""
+    global _robots_cache
+    if _robots_cache is _ROBOTS_UNSET:
+        _robots_cache = _load_robots()
+    if _robots_cache is None:
         return True
-    # Python RobotFileParser는 robots.txt가 403 반환 시 disallow_all=True로 설정.
-    # 서버가 robots.txt 자체를 거부한 것이므로 허용으로 간주 (ADR 004: /board/aion2/* 허용 확인).
-    if rp.disallow_all:
-        logger.warning("robots.txt 403 응답, 규칙 없음으로 간주 (허용)")
-        return True
-    allowed = rp.can_fetch(settings.inven_user_agent, target_url)
+    allowed = _robots_cache.can_fetch(get_settings().inven_user_agent, target_url)
     if not allowed:
         logger.warning(f"robots.txt 차단: {target_url}")
     return allowed
 
 
-def _parse_posted_at(raw: str) -> datetime:
+def _fetch_page(url: str) -> requests.Response:
+    """목록 페이지 GET — 연결 오류·타임아웃·429/5xx는 지수 백오프로 최대 3회 시도."""
+    session = _get_session()
+
+    def _once() -> requests.Response:
+        resp = session.get(url, timeout=_REQUEST_TIMEOUT)
+        if resp.status_code in _RETRY_STATUS:
+            raise _RetryableStatus(resp)
+        resp.raise_for_status()
+        return resp
+
+    def _count_retry(*_args) -> None:
+        crawl_stats.retries += 1
+
+    # 재시도 간격도 요청 간격 정책(최소 3초)을 지킨다
+    return call_with_retry(
+        _once, is_retryable=_is_retryable, on_retry=_count_retry,
+        base=3.0, min_delay=get_settings().inven_request_interval,
+    )
+
+
+def _parse_posted_at(raw: str, now: datetime | None = None) -> datetime:
     """인벤 날짜 문자열 → timezone-aware datetime (KST).
 
-    인벤 표시 형식 (추정):                  # 실제 HTML 확인 후 조정 필요
-    - '2026.04.21 12:30'  (오래된 글, 연도 포함)
-    - '04.21 12:30'       (올해 글, 연도 생략)
-    - '12:30'             (오늘 글, 날짜 생략)
+    목록 페이지에서 확인된 표기:
+    - '12:30'             오늘 글 (시각만)
+    - '07-19'             며칠 지난 글 (월-일만, 시각 없음 → 00:00으로 저장)
+    - '04.21 12:30'       월.일 시각
+    - '2026.04.21 12:30'  연도 포함
+
+    연도가 없는 표기는 올해로 가정하되, 그 결과가 미래면 작년 글로 본다
+    (1월 1일에 12-31 글을 보는 경우).
+
+    Args:
+        now: 기준 시각(테스트용). 기본은 현재 KST.
     """
     raw = raw.strip()
-    today = datetime.now(tz=KST).date()
+    now = now or datetime.now(tz=KST)
+    today = now.date()
 
-    # YYYY.MM.DD HH:MM                      # 실제 HTML 확인 후 조정 필요
-    m = re.match(r"(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})", raw)
+    def _without_future(dt: datetime) -> datetime:
+        # 연도 생략 표기가 미래로 해석되면 작년 글
+        return dt.replace(year=dt.year - 1) if dt.date() > today else dt
+
+    # YYYY.MM.DD HH:MM / YYYY-MM-DD HH:MM
+    m = re.match(r"(\d{4})[.-](\d{2})[.-](\d{2})\s+(\d{2}):(\d{2})", raw)
     if m:
         return datetime(
             int(m.group(1)), int(m.group(2)), int(m.group(3)),
             int(m.group(4)), int(m.group(5)),
             tzinfo=KST,
         )
-    # MM.DD HH:MM                            # 실제 HTML 확인 후 조정 필요
+    # MM.DD HH:MM
     m = re.match(r"(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})", raw)
     if m:
-        return datetime(
+        return _without_future(datetime(
             today.year, int(m.group(1)), int(m.group(2)),
             int(m.group(3)), int(m.group(4)),
             tzinfo=KST,
-        )
-    # HH:MM (오늘)                           # 실제 HTML 확인 후 조정 필요
+        ))
+    # MM-DD (시각 없음) — 2026-07 운영 로그에서 파싱 실패로 확인된 표기.
+    # 예전엔 현재 시각으로 대체돼 지난 글이 "오늘 글"로 저장되고 오늘 집계를 부풀렸다.
+    m = re.match(r"(\d{2})-(\d{2})$", raw)
+    if m:
+        return _without_future(datetime(
+            today.year, int(m.group(1)), int(m.group(2)), tzinfo=KST,
+        ))
+    # HH:MM (오늘)
     m = re.match(r"(\d{2}):(\d{2})$", raw)
     if m:
         return datetime(
@@ -117,7 +212,8 @@ def _parse_posted_at(raw: str) -> datetime:
         )
 
     logger.warning(f"날짜 파싱 실패, 현재 시각으로 대체: '{raw}'")
-    return datetime.now(tz=KST)
+    crawl_stats.date_fallbacks += 1
+    return now
 
 
 def parse_post_list(html: str, board_id: int) -> list[dict]:
@@ -234,11 +330,10 @@ def collect_inven_aion2(
             f"sleep_seconds={sleep_seconds}이 3초 미만. IP 차단 위험. 최소 3.0 권장."
         )
 
-    session = _get_session()
     all_posts: list[dict] = []
     first_url = f"{INVEN_BASE}/board/aion2/{board_id}"
 
-    # robots.txt 체크 (수집 시작 시 1회)
+    # robots.txt 체크 (프로세스당 1회 조회 후 캐시)
     if not _check_robots(first_url):
         return []
 
@@ -247,14 +342,12 @@ def collect_inven_aion2(
         logger.info(f"요청: {url}")
 
         try:
-            resp = session.get(url, timeout=10)
-            resp.raise_for_status()
-        except requests.HTTPError as exc:
-            logger.error(f"HTTP {exc.response.status_code} 에러: {url}")
+            resp = _fetch_page(url)
+        except (requests.RequestException, _RetryableStatus) as exc:
+            crawl_stats.pages_failed += 1
+            logger.error(f"요청 실패(재시도 소진): {url} — {exc}")
             break
-        except requests.RequestException as exc:
-            logger.error(f"요청 실패: {url} — {exc}")
-            break
+        crawl_stats.pages_ok += 1
 
         posts = parse_post_list(resp.text, board_id)
         all_posts.extend(posts)
@@ -276,6 +369,15 @@ def save_posts(posts: list[dict]) -> int:
     if not posts:
         logger.info("저장할 게시글 없음 (0건)")
         return 0
+
+    # 같은 배치 안의 중복 제거 — 수집 중 새 글이 올라오면 1페이지 글이 2페이지로 밀려
+    # 두 번 잡힌다. DB 제약이 막아 주지만, 미리 걸러야 신규/중복 건수가 정확하다.
+    unique: dict[tuple[str, str], dict] = {}
+    for p in posts:
+        unique.setdefault((p["source"], p["external_id"]), p)
+    if len(unique) < len(posts):
+        logger.info(f"배치 내 중복 {len(posts) - len(unique)}건 제거")
+    posts = list(unique.values())
 
     db = get_supabase(use_service_role=True)
     try:

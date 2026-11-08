@@ -1,0 +1,45 @@
+name: Supabase Migrations
+
+# 마이그레이션을 빈 Postgres 16에 순서대로 적용하고, anon(공개 키) 권한과
+# service_role 동작을 SQL로 검증한다. 운영 DB에는 접근하지 않는다(시크릿 불필요).
+on:
+  push:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/supabase-migrations.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/supabase-migrations.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres   # 일회용 CI 컨테이너 전용 값
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply migrations + access checks
+        run: ./supabase/tests/run.sh
+
+      - name: Audit report (참고용 출력)
+        run: psql -X -d migration_test -f supabase/checks/rls_audit.sql

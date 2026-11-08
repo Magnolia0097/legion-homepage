@@ -1,0 +1,22 @@
+# 커밋 전 시크릿 차단 (pipeline/.env 노출 사고 재발 방지 — docs/SECURITY_NOTES.md)
+#
+# 설치 (최초 1회):
+#   uv tool install pre-commit   # 또는 pipx install pre-commit
+#   pre-commit install
+# 전체 파일 점검:
+#   pre-commit run --all-files
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks          # 스테이징된 변경에서 키·토큰 패턴 탐지
+
+  - repo: local
+    hooks:
+      - id: forbid-env-files
+        name: .env 파일 커밋 금지 (.env.example만 허용)
+        language: fail
+        entry: ".env 파일은 커밋할 수 없습니다. 값은 GitHub Secrets/로컬 .env에만 두고, 템플릿은 .env.example에 작성하세요."
+        files: '(^|/)\.env(\.[^/]*)?$'
+        # frontend/.env.production: NEXT_PUBLIC_* 공개 설정만 담긴 기존 파일 (빌드 시 번들에 그대로 포함되는 값)
+        exclude: '(\.env\.example$|^frontend/\.env\.production$)'

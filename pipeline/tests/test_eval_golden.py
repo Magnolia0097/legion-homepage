@@ -89,7 +89,7 @@ def test_build_frame_excludes_spam_and_never_reads_predictions():
     rows = [
         {"id": 1, "title": "검성 상향 패치 이후 체감 어떠신가요 다들", "body": None,
          "board_name": "검성", "posted_at": "2026-08-01T00:00:00+00:00"},
-        {"id": 2, "title": "짧음", "body": None,  # 15자 미만 → 스팸
+        {"id": 2, "title": "｜4만명 회원보유｜키나판매｜최대규모 통디｜", "body": None,  # 작업장 광고 → 스팸
          "board_name": "자유", "posted_at": "2026-08-01T00:00:00+00:00"},
         {"id": 3, "title": "보드 정보 없는 예전 수집분 게시글 제목입니다", "body": None,
          "board_name": None, "posted_at": "2026-05-01T00:00:00+00:00"},
